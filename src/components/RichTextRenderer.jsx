@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { getMedia } from '../utils/db';
+import { AppContext } from '../context/AppContext';
+import { supabase } from '../lib/supabase';
 
 export default function RichTextRenderer({ content, deckId }) {
   const [renderedContent, setRenderedContent] = useState(content);
+  const { user } = useContext(AppContext);
 
   useEffect(() => {
     let isMounted = true;
@@ -29,6 +32,20 @@ export default function RichTextRenderer({ content, deckId }) {
       const replacements = {};
 
       for (const filename of [...soundMatches, ...imgMatches]) {
+        // Resolve from Supabase Storage if user is logged in
+        if (supabase && user) {
+          const isAudio = filename.endsWith('.mp3') || filename.endsWith('.wav') || filename.endsWith('.ogg') || filename.endsWith('.webm');
+          const bucket = isAudio ? 'card-audio' : 'card-images';
+          const { data } = supabase.storage
+            .from(bucket)
+            .getPublicUrl(`${user.id}/${filename}`);
+          
+          if (data?.publicUrl) {
+            replacements[filename] = data.publicUrl;
+            continue;
+          }
+        }
+
         // Look up by original filename inside deck or general fallback keys
         const mediaKeys = [
           `ankimedia_${deckId}_${filename}`,

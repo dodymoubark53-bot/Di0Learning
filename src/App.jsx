@@ -8,6 +8,8 @@ import QuizMode from './components/QuizMode';
 import WordSearch from './components/WordSearch';
 import Translator from './components/Translator';
 import Settings from './components/Settings';
+import Auth from './components/Auth';
+import { supabase } from './lib/supabase';
 
 import { 
   Home, 
@@ -37,8 +39,28 @@ function AppContent() {
     showOnboarding, 
     setShowOnboarding, 
     toasts, 
-    removeToast 
+    removeToast,
+    user,
+    setUser,
+    isDataLoading
   } = useContext(AppContext);
+
+  // Auth listener
+  useEffect(() => {
+    if (supabase) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setUser(session?.user ?? null);
+      });
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        setUser(session?.user ?? null);
+      });
+
+      return () => {
+        subscription?.unsubscribe();
+      };
+    }
+  }, [setUser]);
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -93,6 +115,39 @@ function AppContent() {
     { id: 'translator', icon: <Languages size={18} /> },
     { id: 'settings', icon: <SettingsIcon size={18} /> }
   ];
+
+  if (isDataLoading) {
+    return (
+      <div className="crop-overlay-container" style={{ position: 'fixed', background: 'var(--bg-primary)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="glass-card" style={{ padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', textAlign: 'center' }}>
+          <div className="loading-spinner" style={{ width: '48px', height: '48px', borderRadius: '50%', border: '4px solid var(--border-color)', borderTopColor: 'var(--accent-violet)', animation: 'spin 1s linear infinite' }} />
+          <h3 style={{ color: 'var(--accent-cyan)' }}>{lang === 'ar' ? 'جاري تحميل البيانات...' : 'Loading Cloud Sync...'}</h3>
+        </div>
+      </div>
+    );
+  }
+
+  if (!supabase || !user) {
+    return (
+      <>
+        <Auth />
+        <div className="toast-container">
+          {toasts.map(toast => (
+            <div key={toast.id} className={`toast ${toast.type}`}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{toast.message}</span>
+              <button 
+                className="btn btn-secondary btn-icon" 
+                style={{ width: '20px', height: '20px', background: 'transparent', border: 'none', color: 'inherit' }}
+                onClick={() => removeToast(toast.id)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      </>
+    );
+  }
 
   return (
     <div className="app-container" dir={lang === 'ar' ? 'rtl' : 'ltr'}>

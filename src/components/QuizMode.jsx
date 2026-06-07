@@ -16,9 +16,13 @@ const stripHtml = (html) => {
 
 // Sub-component to load media dynamically from IndexedDB
 function MediaDisplay({ mediaItem }) {
-  const [url, setUrl] = useState(null);
+  const [url, setUrl] = useState(mediaItem?.url || null);
 
   useEffect(() => {
+    if (mediaItem?.url) {
+      setUrl(mediaItem.url);
+      return;
+    }
     let activeUrl = null;
     if (mediaItem?.id) {
       getMedia(mediaItem.id).then(record => {

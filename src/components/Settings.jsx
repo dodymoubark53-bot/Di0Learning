@@ -1,6 +1,7 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../context/AppContext';
 import { clearAllMedia } from '../utils/db';
+import { supabase } from '../lib/supabase';
 import { 
   Settings as SettingsIcon, 
   Sun, 
@@ -10,7 +11,9 @@ import {
   Key, 
   RefreshCw, 
   Eye, 
-  EyeOff
+  EyeOff,
+  Database,
+  LogOut
 } from 'lucide-react';
 
 export default function Settings() {
@@ -22,7 +25,8 @@ export default function Settings() {
     setShowOnboarding, 
     addToast,
     t,
-    lang
+    lang,
+    user
   } = useContext(AppContext);
 
   const [showClaudeKey, setShowClaudeKey] = useState(false);
@@ -30,6 +34,48 @@ export default function Settings() {
 
   const [claudeKey, setClaudeKey] = useState(settings.anthropicKey || '');
   const [ytKey, setYtKey] = useState(settings.youtubeKey || '');
+
+  // Supabase connections config state
+  const isEnvConfigured = !!import.meta.env.VITE_SUPABASE_URL;
+  const [supUrl, setSupUrl] = useState(import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url') || '');
+  const [supKey, setSupKey] = useState(import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('supabase_anon_key') || '');
+  const [showSupKey, setShowSupKey] = useState(false);
+
+  const saveSupabaseConfig = (e) => {
+    e.preventDefault();
+    if (isEnvConfigured) return;
+    localStorage.setItem('supabase_url', supUrl.trim());
+    localStorage.setItem('supabase_anon_key', supKey.trim());
+    addToast(lang === 'ar' ? 'تم حفظ إعدادات الاتصال بنجاح! جاري التوصيل...' : 'Connection settings saved! Reconnecting...', 'success');
+    setTimeout(() => {
+      window.location.reload();
+    }, 1200);
+  };
+
+  const disconnectSupabase = async () => {
+    const confirmMsg = lang === 'ar'
+      ? 'هل أنت متأكد من رغبتك في قطع الاتصال وحذف بيانات خادم Supabase الحالية؟ سيؤدي هذا لتسجيل خروجك.'
+      : 'Are you sure you want to disconnect and clear Supabase credentials? This will sign you out.';
+    
+    if (window.confirm(confirmMsg)) {
+      localStorage.removeItem('supabase_url');
+      localStorage.removeItem('supabase_anon_key');
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+      addToast(lang === 'ar' ? 'تم قطع الاتصال بالخادم.' : 'Disconnected from Supabase project.', 'info');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }
+  };
+
+  const handleLogout = async () => {
+    if (supabase) {
+      await supabase.auth.signOut();
+      addToast(lang === 'ar' ? 'تم تسجيل الخروج بنجاح.' : 'Logged out successfully.', 'info');
+    }
+  };
 
   const saveApiKeys = (e) => {
     e.preventDefault();
@@ -82,6 +128,83 @@ export default function Settings() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        
+        {/* Account Profile Control */}
+        {user && (
+          <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ fontSize: '1.1rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sparkles size={18} color="var(--accent-cyan)" /> {lang === 'ar' ? 'حساب المستخدم السحابي' : 'Cloud User Profile'}
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                {lang === 'ar' ? `مسجل الدخول كـ: ${user.email}` : `Logged in as: ${user.email}`}
+              </p>
+            </div>
+            <button className="btn btn-danger" onClick={handleLogout} style={{ gap: '8px', minWidth: '140px' }}>
+              <LogOut size={16} /> {lang === 'ar' ? 'تسجيل الخروج' : 'Log Out'}
+            </button>
+          </div>
+        )}
+
+        {/* Supabase Connection Settings */}
+        <form onSubmit={saveSupabaseConfig} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <h3 style={{ fontSize: '1.2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Database size={18} color="var(--accent-cyan)" /> {lang === 'ar' ? 'إعدادات اتصال Supabase' : 'Supabase Connection Settings'}
+          </h3>
+
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">{lang === 'ar' ? 'رابط المشروع (URL)' : 'Project URL'}</label>
+            <input
+              type="url"
+              className="form-input"
+              value={supUrl}
+              onChange={(e) => setSupUrl(e.target.value)}
+              disabled={isEnvConfigured}
+              required
+            />
+          </div>
+
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">{lang === 'ar' ? 'المفتاح العام (Anon Key)' : 'Public Anon Key'}</label>
+            <div style={{ display: 'flex', position: 'relative' }}>
+              <input
+                type={showSupKey ? 'text' : 'password'}
+                className="form-input"
+                value={supKey}
+                onChange={(e) => setSupKey(e.target.value)}
+                disabled={isEnvConfigured}
+                required
+                style={{ paddingRight: '48px' }}
+              />
+              <button
+                type="button"
+                className="btn btn-secondary btn-icon"
+                style={{ position: 'absolute', right: lang === 'en' ? '4px' : 'auto', left: lang === 'ar' ? '4px' : 'auto', top: '4px', border: 'none', background: 'transparent' }}
+                onClick={() => setShowSupKey(!showSupKey)}
+              >
+                {showSupKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            {isEnvConfigured && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', display: 'block', marginTop: '6px' }}>
+                {lang === 'ar' ? 'تمت التهيئة عبر ملف البيئة (.env)' : 'Configured via .env environment file.'}
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px' }}>
+            {!isEnvConfigured && (
+              <button type="submit" className="btn btn-primary">
+                {lang === 'ar' ? 'حفظ إعدادات الاتصال' : 'Save Connection'}
+              </button>
+            )}
+            {!isEnvConfigured && (localStorage.getItem('supabase_url') || localStorage.getItem('supabase_anon_key')) && (
+              <button type="button" className="btn btn-danger" onClick={disconnectSupabase}>
+                {lang === 'ar' ? 'قطع الاتصال' : 'Disconnect'}
+              </button>
+            )}
+          </div>
+        </form>
         
         {/* Theme Control */}
         <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
