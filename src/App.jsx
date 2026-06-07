@@ -1,4 +1,5 @@
-import React, { useContext, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
+import { useLocation, useNavigate, Link, Routes, Route, Navigate } from 'react-router-dom';
 import { AppContext, AppProvider } from './context/AppContext';
 import Dashboard from './components/Dashboard';
 import MyCards from './components/MyCards';
@@ -8,7 +9,10 @@ import QuizMode from './components/QuizMode';
 import WordSearch from './components/WordSearch';
 import Translator from './components/Translator';
 import Settings from './components/Settings';
-import Auth from './components/Auth';
+import LoginPage from './components/Login';
+import RegisterPage from './components/Register';
+import Account from './components/Account';
+import ProtectedRoute from './components/ProtectedRoute';
 import { supabase } from './lib/supabase';
 
 import { 
@@ -27,6 +31,66 @@ import {
   ChevronRight
 } from 'lucide-react';
 
+// 1B. Create Navbar Component with user prop
+function Navbar({ user, activeTab, t, lang, toggleLang, theme, toggleTheme }) {
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    navigate('/login');
+  }
+
+  return (
+    <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px', width: '100%' }}>
+      <h2 style={{ textTransform: 'capitalize', fontSize: '1.25rem', color: 'var(--text-secondary)' }}>
+        {t(activeTab)}
+      </h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        
+        {/* AUTH SECTION — always visible top right */}
+        <div className="nav-auth" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {user ? (
+            <>
+              <span className="nav-user-email" style={{ fontSize: '0.9rem', color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                👤 {user.email}
+              </span>
+              <button className="nav-logout-btn btn btn-secondary" onClick={handleLogout} style={{ padding: '6px 12px', fontSize: '0.85rem', color: 'var(--accent-danger)' }}>
+                🚪 Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="nav-login-btn btn btn-secondary" onClick={() => navigate('/login')} style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
+                👤 Login
+              </button>
+              <button className="nav-signup-btn btn btn-secondary" onClick={() => navigate('/register')} style={{ padding: '6px 12px', fontSize: '0.85rem', color: 'var(--accent-cyan)' }}>
+                ✏️ Sign Up
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Language Switcher */}
+        <button 
+          className="btn btn-secondary" 
+          onClick={toggleLang}
+          style={{ padding: '6px 12px', fontSize: '0.85rem', fontWeight: 'bold', minWidth: '70px' }}
+        >
+          🌐 {lang === 'en' ? 'AR' : 'EN'}
+        </button>
+        {/* Theme Toggle */}
+        <button 
+          className="btn btn-secondary btn-icon" 
+          onClick={toggleTheme}
+          style={{ width: '36px', height: '36px' }}
+        >
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+      </div>
+    </nav>
+  );
+}
+
 function AppContent() {
   const { 
     activeTab, 
@@ -40,27 +104,41 @@ function AppContent() {
     setShowOnboarding, 
     toasts, 
     removeToast,
-    user,
-    setUser,
-    isDataLoading
+    isDataLoading,
+    setUser: setContextUser
   } = useContext(AppContext);
 
-  // Auth listener
+  // 1A. Create the Supabase auth listener state in AppContent (which runs inside Router / AppProvider)
+  const [user, setUser] = useState(null);
+
   useEffect(() => {
-    if (supabase) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setUser(session?.user ?? null);
-      });
+    // Get current session on load
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setContextUser(session?.user ?? null);
+    });
 
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        setUser(session?.user ?? null);
-      });
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setContextUser(session?.user ?? null);
+    });
 
-      return () => {
-        subscription?.unsubscribe();
-      };
+    return () => subscription.unsubscribe();
+  }, [setContextUser]);
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Synchronize location path with activeTab state
+  useEffect(() => {
+    const path = location.pathname.substring(1);
+    if (!path) {
+      setActiveTab('home');
+    } else if (['home', 'cards', 'new-card', 'schedule', 'quiz', 'ai-assistant', 'word-search', 'translator', 'settings', 'account'].includes(path)) {
+      setActiveTab(path);
     }
-  }, [setUser]);
+  }, [location, setActiveTab]);
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -68,41 +146,25 @@ function AppContent() {
       if (e.altKey) {
         const key = e.key.toLowerCase();
         const routes = {
-          h: 'home',
-          c: 'cards',
-          n: 'new-card',
-          q: 'quiz',
-          a: 'ai-assistant',
-          s: 'schedule',
-          w: 'word-search',
-          t: 'translator',
-          k: 'settings'
+          h: '/',
+          c: '/cards',
+          n: '/new-card',
+          q: '/quiz',
+          a: '/ai-assistant',
+          s: '/schedule',
+          w: '/word-search',
+          t: '/translator',
+          k: '/settings'
         };
         if (routes[key]) {
           e.preventDefault();
-          setActiveTab(routes[key]);
+          navigate(routes[key]);
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setActiveTab]);
-
-  // Page switcher routing
-  const renderActivePage = () => {
-    switch (activeTab) {
-      case 'home': return <Dashboard />;
-      case 'cards': return <MyCards />;
-      case 'new-card': return <NewCard />;
-      case 'schedule': return <Schedule />;
-      case 'quiz': return <QuizMode />;
-      case 'ai-assistant': return <AIAssistantWrapper />;
-      case 'word-search': return <WordSearch />;
-      case 'translator': return <Translator />;
-      case 'settings': return <Settings />;
-      default: return <Dashboard />;
-    }
-  };
+  }, [navigate]);
 
   const navLinks = [
     { id: 'home', icon: <Home size={18} /> },
@@ -127,137 +189,145 @@ function AppContent() {
     );
   }
 
-  if (!supabase || !user) {
-    return (
-      <>
-        <Auth />
-        <div className="toast-container">
-          {toasts.map(toast => (
-            <div key={toast.id} className={`toast ${toast.type}`}>
-              <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{toast.message}</span>
-              <button 
-                className="btn btn-secondary btn-icon" 
-                style={{ width: '20px', height: '20px', background: 'transparent', border: 'none', color: 'inherit' }}
-                onClick={() => removeToast(toast.id)}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      </>
-    );
-  }
-
   return (
     <div className="app-container" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-      {/* 1. Desktop Sidebar Navigation */}
-      <aside className="app-sidebar">
-        <div className="sidebar-logo">
-          <div style={{
-            background: 'linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-violet) 100%)',
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontWeight: 800
-          }}>d0</div>
-          <span className="gradient-text">Di0 Learning</span>
-        </div>
-
-        <nav style={{ flex: 1 }}>
-          <ul className="nav-links">
-            {navLinks.map(link => (
-              <li key={link.id}>
-                <a 
-                  className={`nav-item ${activeTab === link.id ? 'active' : ''}`}
-                  onClick={() => setActiveTab(link.id)}
-                >
-                  {link.icon}
-                  <span>{t(link.id)}</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </aside>
-
-      {/* 2. Mobile Navigation Bottom Tab Bar */}
-      <nav className="bottom-bar">
-        {navLinks.slice(0, 5).map(link => (
-          <a
-            key={link.id}
-            className={`bottom-nav-item ${activeTab === link.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(link.id)}
-          >
-            {link.icon}
-            <span>{t(link.id).split(' ')[0]}</span>
-          </a>
-        ))}
-        <a
-          className={`bottom-nav-item ${activeTab === 'ai-assistant' ? 'active' : ''}`}
-          onClick={() => setActiveTab('ai-assistant')}
-        >
-          <Sparkles size={18} />
-          <span>{lang === 'ar' ? 'ذكاء' : 'AI'}</span>
-        </a>
-      </nav>
-
-      {/* 3. Main content viewport wrapper */}
-      <main className="app-content">
-        {/* Top Control Bar Header */}
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-          <h2 style={{ textTransform: 'capitalize', fontSize: '1.25rem', color: 'var(--text-secondary)' }}>
-            {t(activeTab)}
-          </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {/* Language Switcher */}
-            <button 
-              className="btn btn-secondary" 
-              onClick={toggleLang}
-              style={{ padding: '6px 12px', fontSize: '0.85rem', fontWeight: 'bold', minWidth: '70px' }}
-            >
-              🌐 {lang === 'en' ? 'AR' : 'EN'}
-            </button>
-            {/* Theme Toggle */}
+      {/* Toast Notification Container */}
+      <div className="toast-container">
+        {toasts.map(toast => (
+          <div key={toast.id} className={`toast ${toast.type}`}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{toast.message}</span>
             <button 
               className="btn btn-secondary btn-icon" 
-              onClick={toggleTheme}
-              style={{ width: '36px', height: '36px' }}
+              style={{ width: '20px', height: '20px', background: 'transparent', border: 'none', color: 'inherit' }}
+              onClick={() => removeToast(toast.id)}
             >
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              ×
             </button>
           </div>
-        </header>
+        ))}
+      </div>
 
-        {renderActivePage()}
+      <Routes>
+        {/* 1E. Add login and register routes in the router */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
 
-        {/* Persistent Floating AI Button */}
-        {activeTab !== 'ai-assistant' && (
-          <button 
-            className="btn btn-primary"
-            onClick={() => setActiveTab('ai-assistant')}
-            style={{
-              position: 'fixed',
-              bottom: '24px',
-              right: lang === 'en' ? '24px' : 'auto',
-              left: lang === 'ar' ? '24px' : 'auto',
-              borderRadius: '50px',
-              padding: '12px 24px',
-              boxShadow: '0 8px 30px rgba(0, 242, 254, 0.3)',
-              zIndex: 90
-            }}
-          >
-            <Sparkles size={18} /> {t('ask_ai')}
-          </button>
-        )}
-      </main>
+        {/* Protected Dashboard/App routes wrapper */}
+        <Route path="/*" element={
+          <ProtectedRoute>
+            <div style={{ display: 'flex', width: '100%' }}>
+              {/* 1. Desktop Sidebar Navigation */}
+              <aside className="app-sidebar">
+                <div className="sidebar-logo">
+                  <div style={{
+                    background: 'linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-violet) 100%)',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    fontWeight: 800
+                  }}>d0</div>
+                  <span className="gradient-text">Di0 Learning</span>
+                </div>
+
+                <nav style={{ flex: 1 }}>
+                  <ul className="nav-links">
+                    {navLinks.map(link => (
+                      <li key={link.id}>
+                        <Link 
+                          to={link.id === 'home' ? '/' : `/${link.id}`}
+                          className={`nav-item ${activeTab === link.id ? 'active' : ''}`}
+                        >
+                          {link.icon}
+                          <span>{t(link.id)}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </nav>
+              </aside>
+
+              {/* 2. Mobile Navigation Bottom Tab Bar */}
+              <nav className="bottom-bar">
+                {navLinks.slice(0, 5).map(link => (
+                  <Link
+                    key={link.id}
+                    to={link.id === 'home' ? '/' : `/${link.id}`}
+                    className={`bottom-nav-item ${activeTab === link.id ? 'active' : ''}`}
+                  >
+                    {link.icon}
+                    <span>{t(link.id).split(' ')[0]}</span>
+                  </Link>
+                ))}
+                <Link
+                  to="/ai-assistant"
+                  className={`bottom-nav-item ${activeTab === 'ai-assistant' ? 'active' : ''}`}
+                >
+                  <Sparkles size={18} />
+                  <span>{lang === 'ar' ? 'ذكاء' : 'AI'}</span>
+                </Link>
+              </nav>
+
+              {/* 3. Main content viewport wrapper */}
+              <main className="app-content" style={{ width: '100%' }}>
+                {/* 1B. Pass user to Navbar */}
+                <Navbar 
+                  user={user} 
+                  activeTab={activeTab} 
+                  t={t} 
+                  lang={lang} 
+                  toggleLang={toggleLang} 
+                  theme={theme} 
+                  toggleTheme={toggleTheme} 
+                />
+
+                {/* Subroutes within App Shell */}
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/home" element={<Navigate to="/" replace />} />
+                  <Route path="/cards" element={<MyCards />} />
+                  <Route path="/new-card" element={<NewCard />} />
+                  <Route path="/schedule" element={<Schedule />} />
+                  <Route path="/quiz" element={<QuizMode />} />
+                  <Route path="/ai-assistant" element={<AIAssistantWrapper />} />
+                  <Route path="/word-search" element={<WordSearch />} />
+                  <Route path="/translator" element={<Translator />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/account" element={<Account />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+
+                {/* Persistent Floating AI Button */}
+                {activeTab !== 'ai-assistant' && (
+                  <Link 
+                    to="/ai-assistant"
+                    className="btn btn-primary"
+                    style={{
+                      position: 'fixed',
+                      bottom: '24px',
+                      right: lang === 'en' ? '24px' : 'auto',
+                      left: lang === 'ar' ? '24px' : 'auto',
+                      borderRadius: '50px',
+                      padding: '12px 24px',
+                      boxShadow: '0 8px 30px rgba(0, 242, 254, 0.3)',
+                      zIndex: 90,
+                      textDecoration: 'none'
+                    }}
+                  >
+                    <Sparkles size={18} /> {t('ask_ai')}
+                  </Link>
+                )}
+              </main>
+            </div>
+          </ProtectedRoute>
+        } />
+      </Routes>
 
       {/* 4. Onboarding Guide Overlay */}
-      {showOnboarding && (
+      {showOnboarding && user && (
         <div className="crop-overlay-container" style={{ padding: '20px' }}>
           <div className="glass-card" style={{ maxWidth: '540px', width: '100%', display: 'flex', flexDirection: 'column', gap: '20px', padding: '32px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -297,22 +367,6 @@ function AppContent() {
           </div>
         </div>
       )}
-
-      {/* 5. Global Toast Notification Container */}
-      <div className="toast-container">
-        {toasts.map(toast => (
-          <div key={toast.id} className={`toast ${toast.type}`}>
-            <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{toast.message}</span>
-            <button 
-              className="btn btn-secondary btn-icon" 
-              style={{ width: '20px', height: '20px', background: 'transparent', border: 'none', color: 'inherit' }}
-              onClick={() => removeToast(toast.id)}
-            >
-              ×
-            </button>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

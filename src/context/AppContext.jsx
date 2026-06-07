@@ -216,6 +216,19 @@ export const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isDataLoading, setIsDataLoading] = useState(false);
 
+  // Auth State Listener
+useEffect(() => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setUser(session?.user ?? null);
+  });
+
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setUser(session?.user ?? null);
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
+
   // UI Language Preference (EN / AR)
   const [lang, setLang] = useState(() => localStorage.getItem('lang') || 'en');
 

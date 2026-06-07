@@ -1,354 +1,228 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../context/AppContext';
-import { clearAllMedia } from '../utils/db';
 import { supabase } from '../lib/supabase';
-import { 
-  Settings as SettingsIcon, 
-  Sun, 
-  Moon, 
-  Trash2, 
-  Keyboard, 
-  Key, 
-  RefreshCw, 
-  Eye, 
-  EyeOff,
-  Database,
-  LogOut
-} from 'lucide-react';
+import { Settings as SettingsIcon, LogOut, Sun, Moon, Languages, Key, Database, Eye, EyeOff } from 'lucide-react';
 
 export default function Settings() {
   const { 
     theme, 
     toggleTheme, 
-    settings, 
-    setSettings, 
-    setShowOnboarding, 
+    lang, 
+    toggleLang, 
     addToast,
     t,
-    lang,
     user
   } = useContext(AppContext);
 
-  const [showClaudeKey, setShowClaudeKey] = useState(false);
-  const [showYoutubeKey, setShowYoutubeKey] = useState(false);
+  const navigate = useNavigate();
 
-  const [claudeKey, setClaudeKey] = useState(settings.anthropicKey || '');
-  const [ytKey, setYtKey] = useState(settings.youtubeKey || '');
+  // Load API keys from localStorage
+  const [ytKey, setYtKey] = useState(() => localStorage.getItem('youtube_api_key') || '');
+  const [ttsKey, setTtsKey] = useState(() => localStorage.getItem('google_tts_key') || '');
 
-  // Supabase connections config state
-  const isEnvConfigured = !!import.meta.env.VITE_SUPABASE_URL;
-  const [supUrl, setSupUrl] = useState(import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url') || '');
-  const [supKey, setSupKey] = useState(import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('supabase_anon_key') || '');
-  const [showSupKey, setShowSupKey] = useState(false);
+  // Supabase credentials info
+  const rawSupUrl = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url') || '';
+  const maskedSupUrl = rawSupUrl ? rawSupUrl.replace(/(https?:\/\/)([^.]+)(.*)/, '$1****$3') : 'Not Configured';
 
-  const saveSupabaseConfig = (e) => {
+  const [showYtKey, setShowYtKey] = useState(false);
+  const [showTtsKey, setShowTtsKey] = useState(false);
+
+  // Sync state with Context and appLanguage localStorage
+  const handleLanguageToggle = () => {
+    const nextLang = lang === 'en' ? 'ar' : 'en';
+    toggleLang(); // updates context
+    localStorage.setItem('appLanguage', nextLang);
+    addToast(nextLang === 'ar' ? 'تم تغيير اللغة إلى العربية' : 'Language changed to English', 'success');
+  };
+
+  const handleThemeToggle = () => {
+    toggleTheme(); // updates context
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('theme', nextTheme);
+    addToast(lang === 'ar' ? 'تم تغيير المظهر' : 'Theme updated successfully', 'success');
+  };
+
+  const handleSaveYtKey = (e) => {
     e.preventDefault();
-    if (isEnvConfigured) return;
-    localStorage.setItem('supabase_url', supUrl.trim());
-    localStorage.setItem('supabase_anon_key', supKey.trim());
-    addToast(lang === 'ar' ? 'تم حفظ إعدادات الاتصال بنجاح! جاري التوصيل...' : 'Connection settings saved! Reconnecting...', 'success');
-    setTimeout(() => {
-      window.location.reload();
-    }, 1200);
+    localStorage.setItem('youtube_api_key', ytKey.trim());
+    addToast(lang === 'ar' ? 'تم حفظ مفتاح YouTube API' : 'YouTube API Key saved successfully!', 'success');
   };
 
-  const disconnectSupabase = async () => {
-    const confirmMsg = lang === 'ar'
-      ? 'هل أنت متأكد من رغبتك في قطع الاتصال وحذف بيانات خادم Supabase الحالية؟ سيؤدي هذا لتسجيل خروجك.'
-      : 'Are you sure you want to disconnect and clear Supabase credentials? This will sign you out.';
-    
-    if (window.confirm(confirmMsg)) {
-      localStorage.removeItem('supabase_url');
-      localStorage.removeItem('supabase_anon_key');
-      if (supabase) {
-        await supabase.auth.signOut();
-      }
-      addToast(lang === 'ar' ? 'تم قطع الاتصال بالخادم.' : 'Disconnected from Supabase project.', 'info');
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    }
+  const handleSaveTtsKey = (e) => {
+    e.preventDefault();
+    localStorage.setItem('google_tts_key', ttsKey.trim());
+    addToast(lang === 'ar' ? 'تم حفظ مفتاح Google TTS API' : 'Google TTS API Key saved successfully!', 'success');
   };
 
-  const handleLogout = async () => {
+  const handleSignOut = async () => {
     if (supabase) {
       await supabase.auth.signOut();
-      addToast(lang === 'ar' ? 'تم تسجيل الخروج بنجاح.' : 'Logged out successfully.', 'info');
+      addToast(lang === 'ar' ? 'تم تسجيل الخروج بنجاح!' : 'Signed out successfully!', 'success');
+      navigate('/login');
     }
   };
 
-  const saveApiKeys = (e) => {
-    e.preventDefault();
-    setSettings(prev => ({
-      ...prev,
-      anthropicKey: claudeKey.trim(),
-      youtubeKey: ytKey.trim()
-    }));
-    addToast(lang === 'ar' ? 'تم حفظ إعدادات API بنجاح!' : 'API settings saved successfully!', 'success');
+  const handleReconnect = () => {
+    localStorage.removeItem('supabase_url');
+    localStorage.removeItem('supabase_anon_key');
+    addToast(lang === 'ar' ? 'إعادة ضبط الاتصال... جاري التحميل' : 'Resetting connection... reloading', 'info');
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
   };
-
-  const clearAllData = async () => {
-    const confirmMsg = lang === 'ar' 
-      ? 'تنبيه: سيؤدي هذا إلى حذف جميع البطاقات التعليمية وجدول الدراسة ومقاطع الصوت والصور. لا يمكن التراجع عن هذا الإجراء. هل تريد الاستمرار؟'
-      : 'CAUTION: This will delete ALL study cards, schedule planner, files, and media recordings. This action cannot be undone. Do you wish to proceed?';
-    
-    if (window.confirm(confirmMsg)) {
-      localStorage.clear();
-      await clearAllMedia();
-      addToast(lang === 'ar' ? 'تم مسح جميع البيانات المحلية بنجاح.' : 'All local storage data and media cleared.', 'info');
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    }
-  };
-
-  const hotkeysList = [
-    { key: 'Alt + H', desc: lang === 'ar' ? 'الذهاب للوحة التحكم الرئيسية' : 'Jump to Home Dashboard' },
-    { key: 'Alt + C', desc: lang === 'ar' ? 'الذهاب لقائمة مجلدات المناهج' : 'Jump to My Cards Decks' },
-    { key: 'Alt + N', desc: lang === 'ar' ? 'الذهاب لقالب إنشاء بطاقة جديدة' : 'Jump to New Card Editor' },
-    { key: 'Alt + Q', desc: lang === 'ar' ? 'بدء وضع الاختبار والمراجعة' : 'Start Quiz Mode' },
-    { key: 'Alt + A', desc: lang === 'ar' ? 'التحدث مع معلم الذكاء الاصطناعي' : 'Ask AI Study Assistant' },
-    { key: 'Alt + S', desc: lang === 'ar' ? 'فتح جدول ومفكرة الدراسة' : 'Check Planner Schedule' },
-    { key: 'Alt + W', desc: lang === 'ar' ? 'البحث عن نطق الكلمات في يوتيوب' : 'Search Context Word Video' },
-    { key: 'Alt + T', desc: lang === 'ar' ? 'فتح لوحة الترجمة الفورية' : 'Open Document Translator' },
-    { key: 'Alt + K', desc: lang === 'ar' ? 'فتح إعدادات التطبيق' : 'Open Settings Panel' },
-    { key: 'Space', desc: lang === 'ar' ? 'كشف / قلب البطاقة في وضع الاختبار' : 'Flip flashcard back/front in Quiz' }
-  ];
 
   return (
-    <div style={{ maxWidth: '720px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      {/* Header */}
-      <div>
-        <h1 style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <SettingsIcon size={28} /> {t('settings_title')}
-        </h1>
-        <p style={{ color: 'var(--text-secondary)' }}>
-          {t('settings_desc')}
-        </p>
+    <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px', padding: '20px', animation: 'fadeIn 0.3s ease-out' }}>
+      
+      {/* Title */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+        <SettingsIcon size={32} className="gradient-text" />
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>{lang === 'ar' ? 'الإعدادات العامة' : 'Application Settings'}</h1>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        
-        {/* Account Profile Control */}
-        {user && (
-          <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ fontSize: '1.1rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sparkles size={18} color="var(--accent-cyan)" /> {lang === 'ar' ? 'حساب المستخدم السحابي' : 'Cloud User Profile'}
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                {lang === 'ar' ? `مسجل الدخول كـ: ${user.email}` : `Logged in as: ${user.email}`}
-              </p>
-            </div>
-            <button className="btn btn-danger" onClick={handleLogout} style={{ gap: '8px', minWidth: '140px' }}>
-              <LogOut size={16} /> {lang === 'ar' ? 'تسجيل الخروج' : 'Log Out'}
+      {/* Section 1: Account Info */}
+      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          👤 {lang === 'ar' ? 'معلومات الحساب' : 'Account Info'}
+        </h3>
+        {user ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+            <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+              {lang === 'ar' ? 'البريد الإلكتروني:' : 'Email Address:'} <strong style={{ color: 'var(--text-primary)' }}>{user.email}</strong>
+            </span>
+            <button className="btn btn-danger" onClick={handleSignOut} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '0.85rem' }}>
+              <LogOut size={14} /> {lang === 'ar' ? 'تسجيل الخروج' : 'Sign Out'}
             </button>
           </div>
+        ) : (
+          <p style={{ color: 'var(--accent-danger)', fontSize: '0.9rem' }}>
+            {lang === 'ar' ? 'لم يتم العثور على مستخدم نشط.' : 'No active user found.'}
+          </p>
         )}
-
-        {/* Supabase Connection Settings */}
-        <form onSubmit={saveSupabaseConfig} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <h3 style={{ fontSize: '1.2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Database size={18} color="var(--accent-cyan)" /> {lang === 'ar' ? 'إعدادات اتصال Supabase' : 'Supabase Connection Settings'}
-          </h3>
-
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">{lang === 'ar' ? 'رابط المشروع (URL)' : 'Project URL'}</label>
-            <input
-              type="url"
-              className="form-input"
-              value={supUrl}
-              onChange={(e) => setSupUrl(e.target.value)}
-              disabled={isEnvConfigured}
-              required
-            />
-          </div>
-
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">{lang === 'ar' ? 'المفتاح العام (Anon Key)' : 'Public Anon Key'}</label>
-            <div style={{ display: 'flex', position: 'relative' }}>
-              <input
-                type={showSupKey ? 'text' : 'password'}
-                className="form-input"
-                value={supKey}
-                onChange={(e) => setSupKey(e.target.value)}
-                disabled={isEnvConfigured}
-                required
-                style={{ paddingRight: '48px' }}
-              />
-              <button
-                type="button"
-                className="btn btn-secondary btn-icon"
-                style={{ position: 'absolute', right: lang === 'en' ? '4px' : 'auto', left: lang === 'ar' ? '4px' : 'auto', top: '4px', border: 'none', background: 'transparent' }}
-                onClick={() => setShowSupKey(!showSupKey)}
-              >
-                {showSupKey ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            {isEnvConfigured && (
-              <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', display: 'block', marginTop: '6px' }}>
-                {lang === 'ar' ? 'تمت التهيئة عبر ملف البيئة (.env)' : 'Configured via .env environment file.'}
-              </span>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: '12px' }}>
-            {!isEnvConfigured && (
-              <button type="submit" className="btn btn-primary">
-                {lang === 'ar' ? 'حفظ إعدادات الاتصال' : 'Save Connection'}
-              </button>
-            )}
-            {!isEnvConfigured && (localStorage.getItem('supabase_url') || localStorage.getItem('supabase_anon_key')) && (
-              <button type="button" className="btn btn-danger" onClick={disconnectSupabase}>
-                {lang === 'ar' ? 'قطع الاتصال' : 'Disconnect'}
-              </button>
-            )}
-          </div>
-        </form>
-        
-        {/* Theme Control */}
-        <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '4px' }}>{t('interface_theme')}</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              {lang === 'ar' ? 'التبديل بين أوضاع المظهر الفاتح والداكن.' : 'Toggle between high-contrast light or dark environments.'}
-            </p>
-          </div>
-          <button className="btn btn-secondary" onClick={toggleTheme} style={{ gap: '10px', minWidth: '130px' }}>
-            {theme === 'dark' ? (
-              <>
-                <Moon size={16} color="var(--accent-cyan)" /> {t('dark_mode')}
-              </>
-            ) : (
-              <>
-                <Sun size={16} color="var(--accent-amber)" /> {t('light_mode')}
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* API Keys Integrations */}
-        <form onSubmit={saveApiKeys} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <h3 style={{ fontSize: '1.2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Key size={18} color="var(--accent-cyan)" /> {t('third_party')}
-          </h3>
-
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">{t('claude_api')}</label>
-            <div style={{ display: 'flex', position: 'relative' }}>
-              <input
-                type={showClaudeKey ? 'text' : 'password'}
-                className="form-input"
-                placeholder="sk-ant-..."
-                value={claudeKey}
-                onChange={(e) => setClaudeKey(e.target.value)}
-                style={{ paddingRight: '48px' }}
-              />
-              <button
-                type="button"
-                className="btn btn-secondary btn-icon"
-                style={{ position: 'absolute', right: lang === 'en' ? '4px' : 'auto', left: lang === 'ar' ? '4px' : 'auto', top: '4px', border: 'none', background: 'transparent' }}
-                onClick={() => setShowClaudeKey(!showClaudeKey)}
-              >
-                {showClaudeKey ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '6px' }}>
-              {lang === 'ar' 
-                ? 'يستخدم للاستعلام الفوري من معلم الذكاء الاصطناعي وإنشاء أسئلة المراجعة تلقائياً.' 
-                : 'Used to query the AI Study Assistant chatbot and auto-generate tests from card notes.'}
-            </span>
-          </div>
-
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">{t('youtube_api')}</label>
-            <div style={{ display: 'flex', position: 'relative' }}>
-              <input
-                type={showYoutubeKey ? 'text' : 'password'}
-                className="form-input"
-                placeholder="AIzaSy..."
-                value={ytKey}
-                onChange={(e) => setYtKey(e.target.value)}
-                style={{ paddingRight: '48px' }}
-              />
-              <button
-                type="button"
-                className="btn btn-secondary btn-icon"
-                style={{ position: 'absolute', right: lang === 'en' ? '4px' : 'auto', left: lang === 'ar' ? '4px' : 'auto', top: '4px', border: 'none', background: 'transparent' }}
-                onClick={() => setShowYoutubeKey(!showYoutubeKey)}
-              >
-                {showYoutubeKey ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '6px' }}>
-              {lang === 'ar'
-                ? 'يستخدم للبحث عن نطق المصطلحات وعرض الفيديوهات التعليمية الواقعية في نفس الصفحة.'
-                : 'Enables YouGlish pronunciation searching to display educational video examples inline.'}
-            </span>
-          </div>
-
-          <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
-            {t('save_api_btn')}
-          </button>
-        </form>
-
-
-        {/* Keyboard Shortcuts */}
-        <div className="glass-card">
-          <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Keyboard size={18} color="var(--accent-violet)" /> {t('shortcuts')}
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            {hotkeysList.map(item => (
-              <div 
-                key={item.key} 
-                style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center', 
-                  padding: '8px 12px', 
-                  background: 'var(--bg-secondary)', 
-                  borderRadius: '6px',
-                  fontSize: '0.85rem'
-                }}
-              >
-                <span style={{ color: 'var(--text-secondary)' }}>{item.desc}</span>
-                <kbd style={{ 
-                  background: 'var(--bg-tertiary)', 
-                  padding: '2px 8px', 
-                  borderRadius: '4px', 
-                  fontWeight: 600,
-                  fontSize: '0.75rem',
-                  fontFamily: 'monospace',
-                  border: '1px solid var(--border-color)',
-                  color: 'var(--accent-cyan)'
-                }}>
-                  {item.key}
-                </kbd>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Danger Zone wipes */}
-        <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
-          <div>
-            <h3 style={{ fontSize: '1.1rem', marginBottom: '4px', color: 'var(--accent-danger)' }}>{t('danger_zone')}</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              {lang === 'ar' ? 'حذف كافة البيانات والإعدادات المحلية، المجلدات والملفات التعليمية نهائياً.' : 'Wipe all local settings, cards metadata, event planners, and media recordings.'}
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button className="btn btn-secondary" onClick={() => { setShowOnboarding(true); addToast('Onboarding reset.', 'info'); }} style={{ fontSize: '0.85rem' }}>
-              <RefreshCw size={14} /> {t('reset_onboarding')}
-            </button>
-            <button className="btn btn-danger" onClick={clearAllData} style={{ fontSize: '0.85rem' }}>
-              <Trash2 size={14} /> {t('clear_database')}
-            </button>
-          </div>
-        </div>
-
       </div>
+
+      {/* Section 2: Appearance */}
+      <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            🎨 {lang === 'ar' ? 'المظهر والسمة' : 'Appearance'}
+          </h3>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+            {lang === 'ar' ? 'التبديل بين الوضع الداكن والوضع المضيء.' : 'Toggle dark mode or light mode settings.'}
+          </p>
+        </div>
+        <button className="btn btn-secondary" onClick={handleThemeToggle} style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '130px' }}>
+          {theme === 'dark' ? (
+            <>
+              <Moon size={16} color="var(--accent-cyan)" /> {lang === 'ar' ? 'الوضع الداكن' : 'Dark Mode'}
+            </>
+          ) : (
+            <>
+              <Sun size={16} color="var(--accent-amber)" /> {lang === 'ar' ? 'الوضع المضيء' : 'Light Mode'}
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Section 3: Language */}
+      <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            🌐 {lang === 'ar' ? 'لغة التطبيق' : 'Language'}
+          </h3>
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+            {lang === 'ar' ? 'تغيير لغة واجهة المستخدم الرسومية.' : 'Change interface language.'}
+          </p>
+        </div>
+        <button className="btn btn-secondary" onClick={handleLanguageToggle} style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '130px', fontWeight: 'bold' }}>
+          <Languages size={16} /> {lang === 'en' ? 'ARABIC (AR)' : 'ENGLISH (EN)'}
+        </button>
+      </div>
+
+      {/* Section 4: API Keys */}
+      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          🔑 {lang === 'ar' ? 'مفاتيح واجهة البرمجة (API)' : 'API Keys'}
+        </h3>
+        
+        {/* YouTube API Key */}
+        <form onSubmit={handleSaveYtKey} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <label className="form-label" style={{ margin: 0, fontSize: '0.8rem' }}>
+            {lang === 'ar' ? 'مفتاح واجهة YouTube API v3' : 'YouTube API Key'}
+          </label>
+          <div style={{ display: 'flex', gap: '8px', position: 'relative' }}>
+            <input
+              type={showYtKey ? 'text' : 'password'}
+              className="form-input"
+              placeholder="AIzaSy..."
+              value={ytKey}
+              onChange={(e) => setYtKey(e.target.value)}
+              style={{ paddingRight: '44px' }}
+            />
+            <button
+              type="button"
+              className="btn btn-secondary btn-icon"
+              style={{ position: 'absolute', right: '4px', top: '4px', border: 'none', background: 'transparent', width: '32px', height: '32px' }}
+              onClick={() => setShowYtKey(!showYtKey)}
+            >
+              {showYtKey ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+            <button type="submit" className="btn btn-primary" style={{ padding: '0 16px', fontSize: '0.85rem' }}>
+              {lang === 'ar' ? 'حفظ' : 'Save'}
+            </button>
+          </div>
+        </form>
+
+        {/* Google TTS API Key */}
+        <form onSubmit={handleSaveTtsKey} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <label className="form-label" style={{ margin: 0, fontSize: '0.8rem' }}>
+            {lang === 'ar' ? 'مفتاح واجهة Google TTS API' : 'Google TTS API Key'}
+          </label>
+          <div style={{ display: 'flex', gap: '8px', position: 'relative' }}>
+            <input
+              type={showTtsKey ? 'text' : 'password'}
+              className="form-input"
+              placeholder="AIzaSy..."
+              value={ttsKey}
+              onChange={(e) => setTtsKey(e.target.value)}
+              style={{ paddingRight: '44px' }}
+            />
+            <button
+              type="button"
+              className="btn btn-secondary btn-icon"
+              style={{ position: 'absolute', right: '4px', top: '4px', border: 'none', background: 'transparent', width: '32px', height: '32px' }}
+              onClick={() => setShowTtsKey(!showTtsKey)}
+            >
+              {showTtsKey ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+            <button type="submit" className="btn btn-primary" style={{ padding: '0 16px', fontSize: '0.85rem' }}>
+              {lang === 'ar' ? 'حفظ' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Section 5: Supabase Connection */}
+      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          🔌 {lang === 'ar' ? 'اتصال قاعدة البيانات' : 'Supabase Connection'}
+        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              {lang === 'ar' ? 'رابط خادم Supabase الحالي' : 'Current Project URL'}
+            </span>
+            <span style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              {maskedSupUrl}
+            </span>
+          </div>
+          <button className="btn btn-secondary" onClick={handleReconnect} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
+            <Database size={14} color="var(--accent-cyan)" /> {lang === 'ar' ? 'إعادة الاتصال' : 'Reconnect'}
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 }
