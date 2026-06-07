@@ -23,20 +23,32 @@ export default function WordSearch() {
     setVideos([]);
 
     try {
+      const isHebrew = /[\u0590-\u05FF]/.test(word);
+
       // 1. Fetch Definition
-      const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
-      if (dictRes.ok) {
-        const dictData = await dictRes.json();
-        setDefinition(dictData[0]);
-      } else {
+      if (isHebrew) {
         setDefinition({
           word,
           meanings: [{ partOfSpeech: 'noun', definitions: [{ definition: lang === 'ar' ? `لم يتم العثور على تعريف لـ "${word}".` : `Definition not found for "${word}".` }] }]
         });
+      } else {
+        const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+        if (dictRes.ok) {
+          const dictData = await dictRes.json();
+          setDefinition(dictData[0]);
+        } else {
+          setDefinition({
+            word,
+            meanings: [{ partOfSpeech: 'noun', definitions: [{ definition: lang === 'ar' ? `لم يتم العثور على تعريف لـ "${word}".` : `Definition not found for "${word}".` }] }]
+          });
+        }
       }
 
       // 2. Fetch Translation
-      const transRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|${targetLang}`);
+      const langPair = isHebrew 
+        ? `iw|${lang === 'ar' ? 'ar' : 'en'}` 
+        : `en|${targetLang}`;
+      const transRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=${langPair}`);
       if (transRes.ok) {
         const transData = await transRes.json();
         setTranslation(transData.responseData?.translatedText || 'Translation unavailable.');
@@ -46,7 +58,12 @@ export default function WordSearch() {
 
       // 3. Fetch YouTube Video Context
       if (settings.youtubeKey) {
-        const ytRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=3&q=${encodeURIComponent(word + ' pronunciation english')}&type=video&key=${settings.youtubeKey}`);
+        const queryTerm = isHebrew ? word : `${word} pronunciation english`;
+        let ytUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=3&q=${encodeURIComponent(queryTerm)}&type=video&key=${settings.youtubeKey}`;
+        if (isHebrew) {
+          ytUrl += '&relevanceLanguage=iw';
+        }
+        const ytRes = await fetch(ytUrl);
         if (ytRes.ok) {
           const ytData = await ytRes.json();
           setVideos(ytData.items || []);
@@ -83,7 +100,8 @@ export default function WordSearch() {
       ar: lang === 'ar' ? 'العربية' : 'Arabic',
       zh: lang === 'ar' ? 'الصينية' : 'Chinese',
       ja: lang === 'ar' ? 'اليابانية' : 'Japanese',
-      ru: lang === 'ar' ? 'الروسية' : 'Russian'
+      ru: lang === 'ar' ? 'الروسية' : 'Russian',
+      iw: lang === 'ar' ? 'العبرية' : 'Hebrew'
     };
     return list[code] || code;
   };
@@ -128,6 +146,7 @@ export default function WordSearch() {
           <option value="de">{lang === 'ar' ? 'الألمانية' : 'German'}</option>
           <option value="it">{lang === 'ar' ? 'الإيطالية' : 'Italian'}</option>
           <option value="ar">{lang === 'ar' ? 'العربية' : 'Arabic'}</option>
+          <option value="iw">{lang === 'ar' ? 'العبرية' : 'Hebrew'}</option>
           <option value="zh">{lang === 'ar' ? 'الصينية' : 'Chinese'}</option>
           <option value="ja">{lang === 'ar' ? 'اليابانية' : 'Japanese'}</option>
           <option value="ru">{lang === 'ar' ? 'الروسية' : 'Russian'}</option>
@@ -227,7 +246,7 @@ export default function WordSearch() {
                 </p>
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <a
-                    href={`https://youglish.com/pronounce/${encodeURIComponent(word)}/english`}
+                    href={`https://youglish.com/pronounce/${encodeURIComponent(word)}/${/[\u0590-\u05FF]/.test(word) ? 'hebrew' : 'english'}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-primary"

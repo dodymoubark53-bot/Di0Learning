@@ -87,7 +87,8 @@ export default function Translator() {
     zh: 'zh-CN',
     ja: 'ja',
     ru: 'ru',
-    pt: 'pt'
+    pt: 'pt',
+    iw: 'iw'
   };
 
   const splitTextIntoChunks = (textToSplit, maxLength) => {
@@ -220,7 +221,8 @@ export default function Translator() {
         zh: 'zh-CN',
         ja: 'ja-JP',
         ru: 'ru-RU',
-        pt: 'pt-PT'
+        pt: 'pt-PT',
+        iw: 'he-IL'
       };
 
       const utterance = new SpeechSynthesisUtterance(textToRead);
@@ -252,6 +254,11 @@ export default function Translator() {
     return `btn btn-secondary btn-icon ${state !== 'idle' ? 'speaking-btn-active' : ''}`;
   };
 
+  const getTextDirection = (langCode) => {
+    const rtlLanguages = ['ar', 'iw', 'fa', 'he'];
+    return rtlLanguages.includes(langCode) ? 'rtl' : 'ltr';
+  };
+
   const languagesList = [
     { code: 'en', name: 'English' },
     { code: 'es', name: 'Spanish' },
@@ -259,6 +266,7 @@ export default function Translator() {
     { code: 'de', name: 'German' },
     { code: 'it', name: 'Italian' },
     { code: 'ar', name: 'Arabic' },
+    { code: 'iw', name: 'Hebrew' },
     { code: 'zh', name: 'Chinese' },
     { code: 'ja', name: 'Japanese' },
     { code: 'ru', name: 'Russian' },
@@ -322,7 +330,8 @@ export default function Translator() {
             placeholder="Type or paste your text here..."
             value={text}
             onChange={(e) => setText(e.target.value)}
-            style={{ border: 'none', background: 'transparent', resize: 'none', padding: 0 }}
+            dir={getTextDirection(sourceLang)}
+            style={{ border: 'none', background: 'transparent', resize: 'none', padding: 0, textAlign: getTextDirection(sourceLang) === 'rtl' ? 'right' : 'left' }}
           />
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
@@ -352,7 +361,19 @@ export default function Translator() {
 
         {/* Right Column: Output text */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px', background: 'var(--bg-secondary)' }}>
-          <div style={{ flex: 1, minHeight: '160px', overflowY: 'auto', whiteSpace: 'pre-wrap', color: translatedText ? 'var(--text-primary)' : 'var(--text-muted)', fontSize: '0.95rem', lineHeight: '1.5' }}>
+          <div 
+            dir={getTextDirection(targetLang)}
+            style={{ 
+              flex: 1, 
+              minHeight: '160px', 
+              overflowY: 'auto', 
+              whiteSpace: 'pre-wrap', 
+              color: translatedText ? 'var(--text-primary)' : 'var(--text-muted)', 
+              fontSize: '0.95rem', 
+              lineHeight: '1.5',
+              textAlign: getTextDirection(targetLang) === 'rtl' ? 'right' : 'left'
+            }}
+          >
             {translatedText || 'Translation will appear here...'}
           </div>
 
