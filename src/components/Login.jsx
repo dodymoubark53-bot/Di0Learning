@@ -11,6 +11,10 @@ export default function LoginPage() {
 
   async function handleLogin() {
     if (!email || !password) { setError('Please fill all fields'); return; }
+    if (!supabase) {
+      setError('Supabase connection error. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+      return;
+    }
     setLoading(true);
     setError('');
     const { error } = await supabase.auth.signInWithPassword({ email, password });

@@ -36,7 +36,9 @@ function Navbar({ user, activeTab, t, lang, toggleLang, theme, toggleTheme }) {
   const navigate = useNavigate();
 
   async function handleLogout() {
-    await supabase.auth.signOut();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     navigate('/login');
   }
 
@@ -112,6 +114,7 @@ function AppContent() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
+    if (!supabase) return;
     // Get current session on load
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);

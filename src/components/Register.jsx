@@ -14,6 +14,10 @@ export default function RegisterPage() {
     if (!email || !password) { setError('Please fill all fields'); return; }
     if (password !== confirm) { setError('Passwords do not match'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
+    if (!supabase) {
+      setError('Supabase connection error. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+      return;
+    }
     setLoading(true);
     setError('');
     const { error } = await supabase.auth.signUp({ email, password });

@@ -218,6 +218,7 @@ export const AppProvider = ({ children }) => {
 
   // Auth State Listener
 useEffect(() => {
+  if (!supabase) return;
   supabase.auth.getSession().then(({ data: { session } }) => {
     setUser(session?.user ?? null);
   });
