@@ -32,64 +32,170 @@ import {
 } from 'lucide-react';
 
 // 1B. Create Navbar Component with user prop
-function Navbar({ user, activeTab, t, lang, toggleLang, theme, toggleTheme }) {
+function Navbar({ user, activeTab, t, lang, toggleLang, theme, toggleTheme, navLinks }) {
   const navigate = useNavigate();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   async function handleLogout() {
     if (supabase) {
       await supabase.auth.signOut();
     }
+    setIsDrawerOpen(false);
     navigate('/login');
   }
 
   return (
-    <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px', width: '100%' }}>
-      <h2 style={{ textTransform: 'capitalize', fontSize: '1.25rem', color: 'var(--text-secondary)' }}>
-        {t(activeTab)}
-      </h2>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        
-        {/* AUTH SECTION — always visible top right */}
-        <div className="nav-auth" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {user ? (
-            <>
-              <span className="nav-user-email" style={{ fontSize: '0.9rem', color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                👤 {user.email}
-              </span>
-              <button className="nav-logout-btn btn btn-secondary" onClick={handleLogout} style={{ padding: '6px 12px', fontSize: '0.85rem', color: 'var(--accent-danger)' }}>
-                🚪 Logout
-              </button>
-            </>
-          ) : (
-            <>
-              <button className="nav-login-btn btn btn-secondary" onClick={() => navigate('/login')} style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
-                👤 Login
-              </button>
-              <button className="nav-signup-btn btn btn-secondary" onClick={() => navigate('/register')} style={{ padding: '6px 12px', fontSize: '0.85rem', color: 'var(--accent-cyan)' }}>
-                ✏️ Sign Up
-              </button>
-            </>
-          )}
+    <>
+      {/* Mobile Header Bar */}
+      <div className="mobile-header-bar" style={{ display: 'none' }}>
+        <div className="sidebar-logo" style={{ marginBottom: 0 }}>
+          <div style={{
+            background: 'linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-violet) 100%)',
+            width: '28px',
+            height: '28px',
+            borderRadius: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontWeight: 800,
+            fontSize: '0.85rem'
+          }}>d0</div>
+          <span className="gradient-text" style={{ fontSize: '1.1rem' }}>Di0 Learning</span>
+        </div>
+        <button className="hamburger-btn" onClick={() => setIsDrawerOpen(true)}>☰</button>
+      </div>
+
+      {/* Drawer Backdrop */}
+      <div className={`drawer-backdrop ${isDrawerOpen ? 'open' : ''}`} onClick={() => setIsDrawerOpen(false)} />
+
+      {/* Mobile Drawer */}
+      <div className={`mobile-drawer ${isDrawerOpen ? 'open' : ''}`}>
+        <div className="drawer-logo">
+          <div style={{
+            background: 'linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-violet) 100%)',
+            width: '28px',
+            height: '28px',
+            borderRadius: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontWeight: 800,
+            fontSize: '0.85rem'
+          }}>d0</div>
+          <span className="gradient-text">Di0 Learning</span>
         </div>
 
-        {/* Language Switcher */}
-        <button 
-          className="btn btn-secondary" 
-          onClick={toggleLang}
-          style={{ padding: '6px 12px', fontSize: '0.85rem', fontWeight: 'bold', minWidth: '70px' }}
-        >
-          🌐 {lang === 'en' ? 'AR' : 'EN'}
-        </button>
-        {/* Theme Toggle */}
-        <button 
-          className="btn btn-secondary btn-icon" 
-          onClick={toggleTheme}
-          style={{ width: '36px', height: '36px' }}
-        >
-          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
+        <ul className="drawer-links">
+          {navLinks && navLinks.map(link => (
+            <li key={link.id}>
+              <Link 
+                to={link.id === 'home' ? '/' : `/${link.id}`}
+                className={`drawer-item ${activeTab === link.id ? 'active' : ''}`}
+                onClick={() => setIsDrawerOpen(false)}
+              >
+                {link.icon}
+                <span>{t(link.id)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+
+        <div className="drawer-footer">
+          <div className="drawer-actions">
+            {/* Language Switcher */}
+            <button 
+              className="btn btn-secondary" 
+              onClick={toggleLang}
+              style={{ padding: '6px 12px', fontSize: '0.85rem', fontWeight: 'bold', flex: 1 }}
+            >
+              🌐 {lang === 'en' ? 'AR' : 'EN'}
+            </button>
+            {/* Theme Toggle */}
+            <button 
+              className="btn btn-secondary btn-icon" 
+              onClick={toggleTheme}
+              style={{ width: '36px', height: '36px' }}
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+          </div>
+
+          {/* AUTH SECTION — inside the drawer on mobile */}
+          <div className="drawer-auth">
+            {user ? (
+              <>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '6px', marginBottom: '4px', wordBreak: 'break-all' }}>
+                  👤 {user.email}
+                </div>
+                <button className="btn btn-secondary" onClick={handleLogout} style={{ color: 'var(--accent-danger)' }}>
+                  🚪 Logout
+                </button>
+              </>
+            ) : (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn btn-secondary" onClick={() => { setIsDrawerOpen(false); navigate('/login'); }} style={{ flex: 1 }}>
+                  👤 Login
+                </button>
+                <button className="btn btn-secondary" onClick={() => { setIsDrawerOpen(false); navigate('/register'); }} style={{ flex: 1, color: 'var(--accent-cyan)' }}>
+                  ✏️ Sign Up
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </nav>
+
+      {/* Desktop Navbar */}
+      <nav className="desktop-navbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px', width: '100%' }}>
+        <h2 style={{ textTransform: 'capitalize', fontSize: '1.25rem', color: 'var(--text-secondary)' }}>
+          {t(activeTab)}
+        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          
+          {/* AUTH SECTION — always visible top right */}
+          <div className="nav-auth" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {user ? (
+              <>
+                <span className="nav-user-email" style={{ fontSize: '0.9rem', color: 'var(--text-primary)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  👤 {user.email}
+                </span>
+                <button className="nav-logout-btn btn btn-secondary" onClick={handleLogout} style={{ padding: '6px 12px', fontSize: '0.85rem', color: 'var(--accent-danger)' }}>
+                  🚪 Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="nav-login-btn btn btn-secondary" onClick={() => navigate('/login')} style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
+                  👤 Login
+                </button>
+                <button className="nav-signup-btn btn btn-secondary" onClick={() => navigate('/register')} style={{ padding: '6px 12px', fontSize: '0.85rem', color: 'var(--accent-cyan)' }}>
+                  ✏️ Sign Up
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Language Switcher */}
+          <button 
+            className="btn btn-secondary" 
+            onClick={toggleLang}
+            style={{ padding: '6px 12px', fontSize: '0.85rem', fontWeight: 'bold', minWidth: '70px' }}
+          >
+            🌐 {lang === 'en' ? 'AR' : 'EN'}
+          </button>
+          {/* Theme Toggle */}
+          <button 
+            className="btn btn-secondary btn-icon" 
+            onClick={toggleTheme}
+            style={{ width: '36px', height: '36px' }}
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }
 
@@ -285,6 +391,7 @@ function AppContent() {
                   toggleLang={toggleLang} 
                   theme={theme} 
                   toggleTheme={toggleTheme} 
+                  navLinks={navLinks}
                 />
 
                 {/* Subroutes within App Shell */}

@@ -529,7 +529,7 @@ export default function NewCard() {
       </div>
 
       {/* Select Template Toggle */}
-      <div className="glass-card" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', padding: '12px' }}>
+      <div className="glass-card template-toggle-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', padding: '12px' }}>
         {['flashcard', 'multiple-choice', 'true-false', 'free-note'].map(tType => (
           <button
             key={tType}
@@ -553,7 +553,7 @@ export default function NewCard() {
         {/* Select Deck Name */}
         <div className="form-group">
           <label className="form-label">{t('deck_label')}</label>
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div className="flex-mobile-stack" style={{ display: 'flex', gap: '12px' }}>
             {!isCreatingDeck ? (
               <>
                 <select 
@@ -930,7 +930,7 @@ function InputToolbar({
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           {!isRecording ? (
             <button 
               type="button" 

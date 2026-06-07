@@ -812,3 +812,198 @@ h1, h2, h3, h4, h5, h6 {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* Mobile responsive updates */
+@media (max-width: 768px) {
+  /* Layout adjustments */
+  .app-container {
+    flex-direction: column;
+  }
+  .app-content {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding: 16px !important;
+    padding-bottom: 90px !important; /* Spacing for bottom bar/floating btn */
+  }
+
+  /* Reset inline grids */
+  .grid, .grid-2, .grid-3 {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  /* Typography & spacing scaling */
+  h1 { font-size: 1.8rem !important; }
+  h2 { font-size: 1.4rem !important; }
+  h3 { font-size: 1.2rem !important; }
+  .glass-card {
+    padding: 16px !important;
+  }
+
+  /* Buttons & Inputs */
+  .btn {
+    min-height: 44px;
+    padding: 10px 16px !important;
+    font-size: 0.9rem !important;
+  }
+  .form-input, .form-textarea, .form-select {
+    font-size: 1rem !important; /* Prevents iOS auto-zoom */
+    padding: 12px !important;
+  }
+
+  /* Header & Drawer styles */
+  .mobile-header-bar {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    height: 56px;
+    padding: 0 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 101;
+  }
+  
+  /* Push app content down to avoid overlap with fixed header bar */
+  .app-content {
+    padding-top: 72px !important;
+  }
+
+  .desktop-navbar {
+    display: none !important;
+  }
+
+  .hamburger-btn {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+  }
+
+  .drawer-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+  }
+
+  .drawer-backdrop.open {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .mobile-drawer {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 280px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    z-index: 201;
+    display: flex;
+    flex-direction: column;
+    padding: 24px 20px;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-premium);
+  }
+
+  [dir="rtl"] .mobile-drawer {
+    border-right: none;
+    border-left: 1px solid var(--border-color);
+    transform: translateX(100%);
+  }
+
+  .mobile-drawer.open {
+    transform: translateX(0);
+  }
+
+  .drawer-logo {
+    font-family: var(--font-header);
+    font-size: 1.3rem;
+    font-weight: 800;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 16px;
+  }
+
+  .drawer-links {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .drawer-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .drawer-item:hover, .drawer-item.active {
+    color: var(--text-primary);
+    background-color: var(--bg-tertiary);
+  }
+
+  .drawer-item.active {
+    border-left: 3px solid var(--accent-cyan);
+  }
+
+  [dir="rtl"] .drawer-item.active {
+    border-left: none;
+    border-right: 3px solid var(--accent-cyan);
+  }
+
+  .drawer-footer {
+    border-top: 1px solid var(--border-color);
+    padding-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .drawer-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  .drawer-auth {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .drawer-auth .btn {
+    width: 100%;
+  }
+}

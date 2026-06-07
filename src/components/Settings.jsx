@@ -103,7 +103,7 @@ export default function Settings() {
       </div>
 
       {/* Section 2: Appearance */}
-      <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="glass-card flex-mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
         <div>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             🎨 {lang === 'ar' ? 'المظهر والسمة' : 'Appearance'}
@@ -126,7 +126,7 @@ export default function Settings() {
       </div>
 
       {/* Section 3: Language */}
-      <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="glass-card flex-mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
         <div>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             🌐 {lang === 'ar' ? 'لغة التطبيق' : 'Language'}
@@ -208,7 +208,7 @@ export default function Settings() {
         <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           🔌 {lang === 'ar' ? 'اتصال قاعدة البيانات' : 'Supabase Connection'}
         </h3>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div className="flex-mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
               {lang === 'ar' ? 'رابط خادم Supabase الحالي' : 'Current Project URL'}

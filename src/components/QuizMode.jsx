@@ -336,7 +336,7 @@ export default function QuizMode() {
 
         {/* True or False Options */}
         {q.template === 'true-false' && (
-          <div style={{ display: 'flex', gap: '16px' }}>
+          <div className="flex-mobile-stack" style={{ display: 'flex', gap: '16px' }}>
             {['True', 'False'].map(opt => {
               const isSelected = userAns === opt;
               const isCorrect = opt === q.correctAnswer;
@@ -383,7 +383,7 @@ export default function QuizMode() {
                   {q.media?.answer_image && <MediaDisplay mediaItem={q.media.answer_image} />}
                   {q.media?.answer_audio && <MediaDisplay mediaItem={q.media.answer_audio} />}
                 </div>
-                <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+                <div className="flex-mobile-stack" style={{ display: 'flex', gap: '12px', width: '100%' }}>
                   <button className="btn btn-secondary" style={{ flex: 1, border: '1px solid var(--accent-emerald)', color: 'var(--accent-emerald)' }} onClick={() => handleSelfScore('correct')}>
                     {t('right_btn')}
                   </button>
@@ -429,7 +429,7 @@ export default function QuizMode() {
                     <p style={{ fontSize: '0.95rem', whiteSpace: 'pre-wrap' }}>{freeNoteInput}</p>
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="flex-mobile-stack" style={{ display: 'flex', gap: '12px' }}>
                   <button className="btn btn-secondary" style={{ flex: 1, border: '1px solid var(--accent-emerald)', color: 'var(--accent-emerald)' }} onClick={() => handleSelfScore('correct')}>
                     {t('pass_btn')}
                   </button>
@@ -505,7 +505,7 @@ export default function QuizMode() {
           })}
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', width: '100%', marginTop: '10px' }}>
+        <div className="flex-mobile-stack" style={{ display: 'flex', gap: '12px', width: '100%', marginTop: '10px' }}>
           <button className="btn btn-primary" onClick={startQuiz} style={{ flex: 1 }}>
             <RotateCcw size={16} /> {t('retake_btn')}
           </button>
