@@ -1,12 +1,68 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { AppContext } from '../context/AppContext';
-import { Brain, Award, ArrowRight, RotateCcw, AlertTriangle, Sparkles, Check, X, ShieldAlert } from 'lucide-react';
+import { Brain, Award, ArrowRight, RotateCcw, Sparkles, Check, X, File } from 'lucide-react';
+import RichTextRenderer from './RichTextRenderer';
+import { getMedia } from '../utils/db';
+
+const stripHtml = (html) => {
+  if (!html) return '';
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || '';
+  } catch (e) {
+    return html;
+  }
+};
+
+// Sub-component to load media dynamically from IndexedDB
+function MediaDisplay({ mediaItem }) {
+  const [url, setUrl] = useState(null);
+
+  useEffect(() => {
+    let activeUrl = null;
+    if (mediaItem?.id) {
+      getMedia(mediaItem.id).then(record => {
+        if (record && record.blob) {
+          activeUrl = URL.createObjectURL(record.blob);
+          setUrl(activeUrl);
+        }
+      });
+    }
+    return () => {
+      if (activeUrl) {
+        URL.revokeObjectURL(activeUrl);
+      }
+    };
+  }, [mediaItem]);
+
+  if (!url) return null;
+
+  const type = mediaItem.type || '';
+  if (type.startsWith('image/')) {
+    return <img src={url} alt={mediaItem.name} style={{ maxWidth: '100%', maxHeight: '160px', borderRadius: '8px', objectFit: 'contain', marginTop: '8px' }} />;
+  }
+  if (type.startsWith('audio/')) {
+    return <audio src={url} controls style={{ width: '100%', height: '32px', marginTop: '8px' }} />;
+  }
+  if (type.startsWith('video/')) {
+    return <video src={url} controls style={{ maxWidth: '100%', maxHeight: '160px', borderRadius: '8px', marginTop: '8px' }} />;
+  }
+  return (
+    <div style={{ marginTop: '8px' }}>
+      <a href={url} download={mediaItem.name} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem', gap: '4px' }}>
+        <File size={12} /> Download {mediaItem.name}
+      </a>
+    </div>
+  );
+}
 
 export default function QuizMode() {
-  const { cards, decks, settings, addQuizResult, setActiveTab, addToast } = useContext(AppContext);
+  const { cards, decks, settings, addQuizResult, setActiveTab, addToast, t, lang } = useContext(AppContext);
 
-  // Setup State
-  const [quizDeck, setQuizDeck] = useState('All');
+  // Setup State (Checking for pre-selected redirect signals)
+  const [quizDeck, setQuizDeck] = useState(() => {
+    return localStorage.getItem('preSelectedQuizDeck') || 'All';
+  });
   const [useAI, setUseAI] = useState(false);
   const [quizStarted, setQuizStarted] = useState(false);
   
@@ -20,9 +76,17 @@ export default function QuizMode() {
   const [quizFinished, setQuizFinished] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
+  // Cleanup deck redirection on mount
+  useEffect(() => {
+    const preselected = localStorage.getItem('preSelectedQuizDeck');
+    if (preselected) {
+      setQuizDeck(preselected);
+      localStorage.removeItem('preSelectedQuizDeck');
+    }
+  }, []);
+
   // Initialize Quiz
   const startQuiz = async () => {
-    // Filter cards
     let deckCards = quizDeck === 'All' ? cards : cards.filter(c => c.deckId === quizDeck);
     
     if (deckCards.length === 0) {
@@ -34,7 +98,6 @@ export default function QuizMode() {
       setIsGeneratingAI(true);
       try {
         if (settings.anthropicKey) {
-          // Construct prompt for Claude to generate a quiz from selected cards
           const notesText = deckCards.map(c => `[Template: ${c.template}] Q/Title: ${c.question} | Answer/Notes: ${c.answer || c.notes}`).join('\n');
           const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -68,7 +131,7 @@ export default function QuizMode() {
             deckId: quizDeck
           })));
         } else {
-          // Fallback to local AI generator simulator
+          // Fallback to local AI generator
           await new Promise(resolve => setTimeout(resolve, 1500));
           const mockAIQuestions = generateMockAIQuestions(deckCards);
           setQuizQuestions(mockAIQuestions);
@@ -82,7 +145,6 @@ export default function QuizMode() {
         setIsGeneratingAI(false);
       }
     } else {
-      // Standard quiz: Shuffle and take up to 10 cards
       const shuffled = [...deckCards].sort(() => 0.5 - Math.random()).slice(0, 10);
       setQuizQuestions(shuffled);
     }
@@ -96,11 +158,8 @@ export default function QuizMode() {
     setQuizStarted(true);
   };
 
-  // Pre-seeded responses for local AI generator when key is absent
   const generateMockAIQuestions = (deckCards) => {
     const questions = [];
-    // Extract terms from cards to build options
-    const titles = deckCards.map(c => c.question).filter(Boolean);
     const contentText = deckCards.map(c => c.notes || c.answer).join(' ');
 
     if (contentText.toLowerCase().includes('photosynthesis') || contentText.toLowerCase().includes('calvin')) {
@@ -129,7 +188,6 @@ export default function QuizMode() {
       });
     }
 
-    // Default general questions based on user's custom deck items
     deckCards.slice(0, 4).forEach((card, idx) => {
       if (card.template === 'flashcard') {
         questions.push({
@@ -142,12 +200,11 @@ export default function QuizMode() {
             'Standard educational placeholder response',
             'None of the above options fit this concept'
           ].sort(() => 0.5 - Math.random()),
-          correctAnswer: 'A' // We will label it correctly during assignment
+          correctAnswer: 'A'
         });
       }
     });
 
-    // Fallback if we couldn't parse anything specific
     if (questions.length === 0) {
       questions.push({
         id: 'ai_gen_fallback',
@@ -158,10 +215,9 @@ export default function QuizMode() {
       });
     }
 
-    // Standardize correct answer sorting
     return questions.map(q => {
       if (q.template === 'multiple-choice') {
-        const correctVal = q.options[0]; // Set correct item
+        const correctVal = q.options[0];
         const shuffledOptions = [...q.options].sort(() => 0.5 - Math.random());
         const correctIndexLabel = String.fromCharCode(65 + shuffledOptions.indexOf(correctVal));
         return {
@@ -175,7 +231,7 @@ export default function QuizMode() {
   };
 
   const handleOptionSelect = (optionLabel) => {
-    if (selectedAnswers[currentIndex] !== undefined) return; // Answer already lock-in
+    if (selectedAnswers[currentIndex] !== undefined) return;
     setSelectedAnswers(prev => ({ ...prev, [currentIndex]: optionLabel }));
   };
 
@@ -195,17 +251,12 @@ export default function QuizMode() {
   };
 
   const finishQuiz = () => {
-    // Calculate final scores
     let finalScore = 0;
     quizQuestions.forEach((q, idx) => {
       if (q.template === 'multiple-choice' || q.template === 'true-false') {
-        if (selectedAnswers[idx] === q.correctAnswer) {
-          finalScore++;
-        }
+        if (selectedAnswers[idx] === q.correctAnswer) finalScore++;
       } else {
-        if (selfScores[idx] === 'correct') {
-          finalScore++;
-        }
+        if (selfScores[idx] === 'correct') finalScore++;
       }
     });
 
@@ -218,7 +269,6 @@ export default function QuizMode() {
     setQuizFinished(true);
   };
 
-  // Render question slide
   const renderQuizQuestion = () => {
     const q = quizQuestions[currentIndex];
     const userAns = selectedAnswers[currentIndex];
@@ -229,10 +279,10 @@ export default function QuizMode() {
         {/* Progress bar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
           <span style={{ color: 'var(--text-secondary)' }}>
-            Question {currentIndex + 1} of {quizQuestions.length}
+            {t('q_progress', { current: currentIndex + 1, total: quizQuestions.length })}
           </span>
           <span style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>
-            Deck: {quizDeck}
+            {t('cards')}: {q.deckId || quizDeck}
           </span>
         </div>
         <div style={{ width: '100%', height: '4px', background: 'var(--bg-tertiary)', borderRadius: '2px', overflow: 'hidden' }}>
@@ -241,12 +291,15 @@ export default function QuizMode() {
 
         {/* Question text */}
         <div>
-          <h2 style={{ fontSize: '1.3rem', fontWeight: 600, lineHeight: 1.4 }}>{q.question}</h2>
+          <h2 style={{ fontSize: '1.3rem', fontWeight: 600, lineHeight: 1.4 }}>
+            <RichTextRenderer content={q.question} deckId={q.deckId || quizDeck} />
+          </h2>
+          {q.media?.question && <MediaDisplay mediaItem={q.media.question} />}
+          {q.media?.question_image && <MediaDisplay mediaItem={q.media.question_image} />}
+          {q.media?.question_audio && <MediaDisplay mediaItem={q.media.question_audio} />}
         </div>
 
-        {/* Templates logic */}
-
-        {/* Multiple Choice Card */}
+        {/* Multiple Choice Options */}
         {q.template === 'multiple-choice' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {q.options.map((opt, oIdx) => {
@@ -254,78 +307,52 @@ export default function QuizMode() {
               const isSelected = userAns === label;
               const isCorrect = label === q.correctAnswer;
               
-              let borderStyle = 'var(--border-color)';
-              let bgStyle = 'var(--bg-secondary)';
-              
+              let optionClass = "quiz-option-btn";
               if (isAnswered) {
-                if (isCorrect) {
-                  borderStyle = 'var(--accent-emerald)';
-                  bgStyle = 'rgba(16, 185, 129, 0.15)';
-                } else if (isSelected) {
-                  borderStyle = 'var(--accent-danger)';
-                  bgStyle = 'rgba(239, 68, 68, 0.15)';
-                }
-              } else {
-                borderStyle = 'var(--border-color)';
+                if (isCorrect) optionClass += " correct";
+                else if (isSelected) optionClass += " incorrect";
+              } else if (isSelected) {
+                optionClass += " selected";
               }
 
               return (
                 <button
                   key={oIdx}
                   type="button"
-                  className="btn"
+                  className={optionClass}
                   onClick={() => handleOptionSelect(label)}
                   disabled={isAnswered}
-                  style={{
-                    justifyContent: 'flex-start',
-                    background: bgStyle,
-                    border: `1px solid ${borderStyle}`,
-                    padding: '14px',
-                    fontSize: '0.9rem',
-                    textAlign: 'left'
-                  }}
                 >
-                  <strong style={{ marginRight: '8px' }}>{label})</strong> {opt}
+                  <strong>{label})</strong> {opt}
                 </button>
               );
             })}
           </div>
         )}
 
-        {/* True or False Card */}
+        {/* True or False Options */}
         {q.template === 'true-false' && (
           <div style={{ display: 'flex', gap: '16px' }}>
             {['True', 'False'].map(opt => {
               const isSelected = userAns === opt;
               const isCorrect = opt === q.correctAnswer;
 
-              let borderStyle = 'var(--border-color)';
-              let bgStyle = 'var(--bg-secondary)';
-              
+              let optionClass = "quiz-option-btn justify-center";
               if (isAnswered) {
-                if (isCorrect) {
-                  borderStyle = 'var(--accent-emerald)';
-                  bgStyle = 'rgba(16, 185, 129, 0.15)';
-                } else if (isSelected) {
-                  borderStyle = 'var(--accent-danger)';
-                  bgStyle = 'rgba(239, 68, 68, 0.15)';
-                }
+                if (isCorrect) optionClass += " correct";
+                else if (isSelected) optionClass += " incorrect";
+              } else if (isSelected) {
+                optionClass += " selected";
               }
 
               return (
                 <button
                   key={opt}
                   type="button"
-                  className="btn"
+                  className={optionClass}
                   onClick={() => handleOptionSelect(opt)}
                   disabled={isAnswered}
-                  style={{
-                    flex: 1,
-                    background: bgStyle,
-                    border: `1px solid ${borderStyle}`,
-                    padding: '16px',
-                    fontWeight: 600
-                  }}
+                  style={{ flex: 1 }}
                 >
                   {opt === 'True' ? '✅ True' : '❌ False'}
                 </button>
@@ -339,20 +366,25 @@ export default function QuizMode() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
             {!revealAnswer ? (
               <button className="btn btn-primary" onClick={() => setRevealAnswer(true)}>
-                Reveal Answer
+                {t('reveal_btn')}
               </button>
             ) : (
               <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
                 <div style={{ background: 'var(--bg-primary)', padding: '20px', borderRadius: '12px', width: '100%', textAlign: 'center', border: '1px solid var(--border-color)' }}>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '8px' }}>Answer</p>
-                  <p style={{ fontSize: '1.2rem', fontWeight: 600 }}>{q.answer}</p>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>
+                    <RichTextRenderer content={q.answer} deckId={q.deckId || quizDeck} />
+                  </div>
+                  {q.media?.answer && <MediaDisplay mediaItem={q.media.answer} />}
+                  {q.media?.answer_image && <MediaDisplay mediaItem={q.media.answer_image} />}
+                  {q.media?.answer_audio && <MediaDisplay mediaItem={q.media.answer_audio} />}
                 </div>
                 <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
                   <button className="btn btn-secondary" style={{ flex: 1, border: '1px solid var(--accent-emerald)', color: 'var(--accent-emerald)' }} onClick={() => handleSelfScore('correct')}>
-                    ✓ I was right
+                    {t('right_btn')}
                   </button>
                   <button className="btn btn-secondary" style={{ flex: 1, border: '1px solid var(--accent-danger)', color: 'var(--accent-danger)' }} onClick={() => handleSelfScore('wrong')}>
-                    ✗ I was wrong
+                    {t('wrong_btn')}
                   </button>
                 </div>
               </div>
@@ -368,19 +400,24 @@ export default function QuizMode() {
                 <textarea
                   className="form-textarea"
                   rows={4}
-                  placeholder="Type your recall notes here to compare..."
+                  placeholder="..."
                   value={freeNoteInput}
                   onChange={(e) => setFreeNoteInput(e.target.value)}
                 />
                 <button className="btn btn-primary" onClick={() => setRevealAnswer(true)}>
-                  Compare with Original Note
+                  {t('compare_note')}
                 </button>
               </>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ background: 'var(--bg-primary)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '4px' }}>Original Note</p>
-                  <p style={{ fontSize: '0.95rem', whiteSpace: 'pre-wrap' }}>{q.notes}</p>
+                  <div style={{ fontSize: '0.95rem' }}>
+                    <RichTextRenderer content={q.notes} deckId={q.deckId || quizDeck} />
+                  </div>
+                  {q.media?.notes && <MediaDisplay mediaItem={q.media.notes} />}
+                  {q.media?.notes_image && <MediaDisplay mediaItem={q.media.notes_image} />}
+                  {q.media?.notes_audio && <MediaDisplay mediaItem={q.media.notes_audio} />}
                 </div>
                 {freeNoteInput && (
                   <div style={{ background: 'var(--bg-primary)', padding: '16px', borderRadius: '10px', border: '1px solid var(--border-color)', opacity: 0.85 }}>
@@ -390,10 +427,10 @@ export default function QuizMode() {
                 )}
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button className="btn btn-secondary" style={{ flex: 1, border: '1px solid var(--accent-emerald)', color: 'var(--accent-emerald)' }} onClick={() => handleSelfScore('correct')}>
-                    ✓ Recalled Well (Pass)
+                    {t('pass_btn')}
                   </button>
                   <button className="btn btn-secondary" style={{ flex: 1, border: '1px solid var(--accent-danger)', color: 'var(--accent-danger)' }} onClick={() => handleSelfScore('wrong')}>
-                    ✗ Forgot Details (Fail)
+                    {t('fail_btn')}
                   </button>
                 </div>
               </div>
@@ -401,17 +438,16 @@ export default function QuizMode() {
           </div>
         )}
 
-        {/* Nav Toolbar */}
+        {/* Next Button */}
         {isAnswered && (
           <button className="btn btn-primary" style={{ alignSelf: 'flex-end', gap: '6px' }} onClick={handleNext}>
-            Next Question <ArrowRight size={16} />
+            {lang === 'ar' ? 'السؤال التالي' : 'Next Question'} <ArrowRight size={16} style={{ transform: lang === 'ar' ? 'rotate(180deg)' : 'none' }} />
           </button>
         )}
       </div>
     );
   };
 
-  // Render score totals
   const renderQuizFinished = () => {
     let score = 0;
     quizQuestions.forEach((q, idx) => {
@@ -431,8 +467,8 @@ export default function QuizMode() {
         </div>
 
         <div>
-          <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>Quiz Completed!</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Great job reviewing your deck subjects.</p>
+          <h1 style={{ fontSize: '2rem', marginBottom: '8px' }}>{t('quiz_completed')}</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>{t('quiz_comp_desc')}</p>
         </div>
 
         <div style={{ fontSize: '3rem', fontWeight: 800 }}>
@@ -442,9 +478,8 @@ export default function QuizMode() {
 
         {/* Summary grid */}
         <div style={{ width: '100%', borderTop: '1px solid var(--border-color)', paddingTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left' }}>
-          <h3 style={{ fontSize: '1.1rem', marginBottom: '6px' }}>Review Summary:</h3>
+          <h3 style={{ fontSize: '1.1rem', marginBottom: '6px' }}>{t('review_summary')}</h3>
           {quizQuestions.map((q, idx) => {
-            const templateLabel = q.template.replace('-', ' ');
             let isCorrect = false;
             
             if (q.template === 'multiple-choice' || q.template === 'true-false') {
@@ -456,10 +491,10 @@ export default function QuizMode() {
             return (
               <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'var(--bg-secondary)', borderRadius: '6px', fontSize: '0.85rem' }}>
                 <div style={{ maxWidth: '80%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <strong>Q{idx+1}:</strong> {q.question}
+                  <strong>Q{idx+1}:</strong> {stripHtml(q.question)}
                 </div>
                 <span style={{ color: isCorrect ? 'var(--accent-emerald)' : 'var(--accent-danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  {isCorrect ? <Check size={14} /> : <X size={14} />} {isCorrect ? 'Correct' : 'Incorrect'}
+                  {isCorrect ? <Check size={14} /> : <X size={14} />} {isCorrect ? (lang === 'ar' ? 'صح' : 'Correct') : (lang === 'ar' ? 'خطأ' : 'Incorrect')}
                 </span>
               </div>
             );
@@ -468,10 +503,10 @@ export default function QuizMode() {
 
         <div style={{ display: 'flex', gap: '12px', width: '100%', marginTop: '10px' }}>
           <button className="btn btn-primary" onClick={startQuiz} style={{ flex: 1 }}>
-            <RotateCcw size={16} /> Retake Quiz
+            <RotateCcw size={16} /> {t('retake_btn')}
           </button>
           <button className="btn btn-secondary" onClick={() => { setQuizStarted(false); setQuizFinished(false); }} style={{ flex: 1 }}>
-            Review other Decks
+            {t('other_decks_btn')}
           </button>
         </div>
       </div>
@@ -480,41 +515,40 @@ export default function QuizMode() {
 
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Quiz setup view */}
       {!quizStarted && (
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Brain size={32} color="var(--accent-cyan)" />
-            <h1 style={{ fontSize: '1.8rem' }}>Quiz Mode</h1>
+            <h1 style={{ fontSize: '1.8rem' }}>{t('quiz_title')}</h1>
           </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Test your knowledge by taking a customized quiz from your study decks.
+            {t('quiz_desc')}
           </p>
 
           <div className="form-group">
-            <label className="form-label">Select Deck / Subject</label>
+            <label className="form-label">{t('select_deck')}</label>
             <select
               className="form-select"
               value={quizDeck}
               onChange={(e) => setQuizDeck(e.target.value)}
             >
-              <option value="All">All Decks ({cards.length} cards)</option>
+              <option value="All">{lang === 'ar' ? 'جميع المجلدات' : 'All Decks'} ({cards.length} {t('cards_count')})</option>
               {decks.map(d => (
                 <option key={d} value={d}>
-                  {d} ({cards.filter(c => c.deckId === d).length} cards)
+                  {d} ({cards.filter(c => c.deckId === d).length} {t('cards_count')})
                 </option>
               ))}
             </select>
           </div>
 
-          {/* AI Generator Toggle option */}
+          {/* AI Generator Toggle */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-secondary)', padding: '14px 18px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
             <div>
               <strong style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Sparkles size={16} color="var(--accent-violet)" /> Auto-Generate via AI
+                <Sparkles size={16} color="var(--accent-violet)" /> {t('ai_gen_toggle')}
               </strong>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                Transforms your raw card summaries/notes into a 5-question test.
+                {t('ai_gen_desc')}
               </p>
             </div>
             <input
@@ -532,15 +566,13 @@ export default function QuizMode() {
             style={{ marginTop: '12px' }}
             disabled={isGeneratingAI}
           >
-            {isGeneratingAI ? 'Assembling quiz materials...' : 'Start Review Quiz'}
+            {isGeneratingAI ? (lang === 'ar' ? 'جاري تجهيز المواد...' : 'Assembling quiz materials...') : t('start_quiz_btn')}
           </button>
         </div>
       )}
 
-      {/* Quiz questions view */}
       {quizStarted && !quizFinished && renderQuizQuestion()}
 
-      {/* Quiz completed view */}
       {quizStarted && quizFinished && renderQuizFinished()}
     </div>
   );

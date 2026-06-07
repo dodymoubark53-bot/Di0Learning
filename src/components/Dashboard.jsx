@@ -15,10 +15,12 @@ import {
 export default function Dashboard() {
   const { 
     cards, 
-    decks, 
+    decksMetadata, 
     schedule, 
     quizHistory, 
-    setActiveTab 
+    setActiveTab,
+    t,
+    lang
   } = useContext(AppContext);
 
   // Get next 3 upcoming sessions
@@ -30,7 +32,7 @@ export default function Dashboard() {
 
   // Compute stats
   const totalCards = cards.length;
-  const totalDecks = decks.length;
+  const totalDecks = decksMetadata.length;
   const recentQuiz = quizHistory[0] || null;
   const avgScore = quizHistory.length 
     ? Math.round((quizHistory.reduce((acc, curr) => acc + (curr.score / curr.total), 0) / quizHistory.length) * 100) 
@@ -41,10 +43,10 @@ export default function Dashboard() {
       {/* Header section */}
       <div>
         <h1 style={{ fontSize: '2.5rem', marginBottom: '8px' }}>
-          Welcome back to <span className="gradient-text">Di0 Learning</span>
+          {t('welcome')} <span className="gradient-text">Di0 Learning</span>
         </h1>
         <p style={{ color: 'var(--text-secondary)' }}>
-          Your ultimate AI-powered study space. Here is your overview for today.
+          {t('tagline')}
         </p>
       </div>
 
@@ -56,7 +58,7 @@ export default function Dashboard() {
           </div>
           <div>
             <h3 style={{ fontSize: '1.8rem', fontWeight: '800' }}>{totalCards}</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Total Cards Created</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('total_cards')}</p>
           </div>
         </div>
 
@@ -66,7 +68,7 @@ export default function Dashboard() {
           </div>
           <div>
             <h3 style={{ fontSize: '1.8rem', fontWeight: '800' }}>{totalDecks}</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Active Decks / Subjects</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('active_decks')}</p>
           </div>
         </div>
 
@@ -76,24 +78,24 @@ export default function Dashboard() {
           </div>
           <div>
             <h3 style={{ fontSize: '1.8rem', fontWeight: '800' }}>{avgScore}%</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Avg Quiz Accuracy</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('quiz_accuracy')}</p>
           </div>
         </div>
       </div>
 
       {/* Dashboard Main Grid split */}
       <div className="grid grid-2" style={{ gap: '30px', gridTemplateColumns: '1.2fr 0.8fr' }}>
-        {/* Left: Quick Actions & Sessions */}
+        {/* Left: Upcoming Sessions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <h2 style={{ fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Clock size={22} color="var(--accent-cyan)" /> Upcoming Study Sessions
+            <Clock size={22} color="var(--accent-cyan)" /> {t('upcoming_sessions')}
           </h2>
           
           {upcomingSessions.length === 0 ? (
             <div className="glass-card" style={{ textAlign: 'center', padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-              <p style={{ color: 'var(--text-secondary)' }}>No study sessions scheduled for today or later.</p>
+              <p style={{ color: 'var(--text-secondary)' }}>{t('no_sessions')}</p>
               <button className="btn btn-secondary" onClick={() => setActiveTab('schedule')}>
-                <Plus size={16} /> Add Study Session
+                <Plus size={16} /> {t('add_session')}
               </button>
             </div>
           ) : (
@@ -120,7 +122,7 @@ export default function Dashboard() {
                 </div>
               ))}
               <button className="btn btn-secondary" onClick={() => setActiveTab('schedule')} style={{ alignSelf: 'flex-start' }}>
-                View Full Calendar <ArrowRight size={16} />
+                {t('view_full_calendar')} <ArrowRight size={16} style={{ transform: lang === 'ar' ? 'rotate(180deg)' : 'none' }} />
               </button>
             </div>
           )}
@@ -128,42 +130,42 @@ export default function Dashboard() {
 
         {/* Right side: Quick Links & Recent Stats */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <h2 style={{ fontSize: '1.5rem' }}>Quick Actions</h2>
+          <h2 style={{ fontSize: '1.5rem' }}>{t('quick_actions')}</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <button className="btn btn-primary" onClick={() => setActiveTab('new-card')} style={{ height: '100px', flexDirection: 'column', gap: '8px', fontSize: '0.9rem' }}>
-              <Plus size={24} /> Create Card
+              <Plus size={24} /> {t('new-card')}
             </button>
             <button className="btn btn-secondary" onClick={() => setActiveTab('quiz')} style={{ height: '100px', flexDirection: 'column', gap: '8px', fontSize: '0.9rem' }}>
-              <Brain size={24} color="var(--accent-violet)" /> Start Quiz
+              <Brain size={24} color="var(--accent-violet)" /> {t('quiz')}
             </button>
             <button className="btn btn-secondary" onClick={() => setActiveTab('ai-assistant')} style={{ height: '100px', flexDirection: 'column', gap: '8px', fontSize: '0.9rem' }}>
-              <Languages size={24} color="var(--accent-cyan)" /> AI Tutor Chat
+              <Languages size={24} color="var(--accent-cyan)" /> {t('ask_ai')}
             </button>
             <button className="btn btn-secondary" onClick={() => setActiveTab('word-search')} style={{ height: '100px', flexDirection: 'column', gap: '8px', fontSize: '0.9rem' }}>
-              <Search size={24} color="var(--accent-amber)" /> Word Video Context
+              <Search size={24} color="var(--accent-amber)" /> {t('word-search')}
             </button>
           </div>
 
-          <h2 style={{ fontSize: '1.5rem', marginTop: '12px' }}>Recent Quiz Performance</h2>
+          <h2 style={{ fontSize: '1.5rem', marginTop: '12px' }}>{t('recent_quiz_perf')}</h2>
           <div className="glass-card">
             {recentQuiz ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <p style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Deck Subject:</span>
+                  <span>{t('deck_subject')}:</span>
                   <strong style={{ color: 'var(--accent-violet)' }}>{recentQuiz.deckName}</strong>
                 </p>
                 <p style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Score:</span>
+                  <span>{t('score')}:</span>
                   <strong>{recentQuiz.score} / {recentQuiz.total} ({Math.round(recentQuiz.score / recentQuiz.total * 100)}%)</strong>
                 </p>
                 <p style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  <span>Date Taken:</span>
+                  <span>{t('date_taken')}:</span>
                   <span>{recentQuiz.date}</span>
                 </p>
               </div>
             ) : (
-              <div style={{ textStyle: 'center', color: 'var(--text-secondary)', textAlign: 'center', padding: '10px 0' }}>
-                No quiz history yet. Jump in and test your knowledge!
+              <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '10px 0' }}>
+                {t('no_quiz_history')}
               </div>
             )}
           </div>

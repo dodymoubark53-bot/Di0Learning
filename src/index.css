@@ -640,3 +640,175 @@ h1, h2, h3, h4, h5, h6 {
   gap: 16px;
   margin-top: 20px;
 }
+
+/* ==========================================================================
+   UPDATED STYLING RULES (Multiple Choice contrast, RTL layout, TTS speaking, Voice playback)
+   ========================================================================== */
+
+/* RTL Layout support */
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .app-sidebar {
+  left: auto;
+  right: 0;
+  border-right: none;
+  border-left: 1px solid var(--border-color);
+}
+
+[dir="rtl"] .app-content {
+  margin-left: 0;
+  margin-right: 260px;
+}
+
+[dir="rtl"] .nav-item {
+  border-left: none;
+}
+[dir="rtl"] .nav-item.active {
+  border-right: 3px solid var(--accent-cyan);
+}
+
+[dir="rtl"] .toast-container {
+  right: auto;
+  left: 24px;
+}
+
+@media (max-width: 1024px) {
+  [dir="rtl"] .app-content {
+    margin-right: 80px;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  [dir="rtl"] .app-content {
+    margin-right: 0;
+  }
+}
+
+/* Multiple choice contrast buttons (Quiz & card editor) */
+.quiz-option-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background-color: var(--bg-secondary) !important;
+  border: 2px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+  border-radius: 10px;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+
+[dir="rtl"] .quiz-option-btn {
+  text-align: right;
+}
+
+.quiz-option-btn:hover:not(:disabled) {
+  border-color: var(--accent-cyan) !important;
+  background-color: var(--bg-tertiary) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(var(--accent-cyan-rgb), 0.1);
+}
+
+/* Highlight Selected multiple choice item */
+.quiz-option-btn.selected {
+  border-color: var(--accent-cyan) !important;
+  background-color: rgba(0, 242, 254, 0.12) !important;
+  box-shadow: 0 0 16px rgba(var(--accent-cyan-rgb), 0.25) !important;
+  transform: scale(1.01);
+}
+
+/* Correct status option key */
+.quiz-option-btn.correct {
+  border-color: var(--accent-emerald) !important;
+  background-color: rgba(16, 185, 129, 0.18) !important;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.2) !important;
+}
+
+/* Incorrect selected answer */
+.quiz-option-btn.incorrect {
+  border-color: var(--accent-danger) !important;
+  background-color: rgba(239, 68, 68, 0.18) !important;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.2) !important;
+}
+
+/* Folder Deck Cards styling */
+.deck-folder-card {
+  position: relative;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-top: 6px solid var(--accent-color, var(--accent-violet));
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow-premium);
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 180px;
+}
+
+.deck-folder-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-glow), var(--shadow-premium);
+}
+
+/* TTS Synthesizer animation while speaking */
+.speaking-btn-active {
+  animation: pulse-speaking 1.2s infinite ease-in-out;
+  background-color: rgba(0, 242, 254, 0.2) !important;
+  border-color: var(--accent-cyan) !important;
+  color: var(--accent-cyan) !important;
+}
+
+@keyframes pulse-speaking {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); box-shadow: 0 0 10px rgba(0, 242, 254, 0.3); }
+  100% { transform: scale(1); }
+}
+
+/* Voice playback controls container styling */
+.voice-playback-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  padding: 10px 16px;
+  border-radius: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.playback-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.playback-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-violet));
+  border-radius: 3px;
+  width: 0%;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

@@ -1,14 +1,14 @@
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../context/AppContext';
-import { Search, Volume2, Globe, Video, ExternalLink, MessageSquare, Loader } from 'lucide-react';
+import { getMedia } from '../utils/db';
+import { Search, Volume2, Globe, Video, ExternalLink, Loader } from 'lucide-react';
 
 export default function WordSearch() {
-  const { settings, addToast } = useContext(AppContext);
+  const { settings, addToast, t, lang } = useContext(AppContext);
   const [word, setWord] = useState('');
-  const [targetLang, setTargetLang] = useState('es'); // Default to Spanish translation
+  const [targetLang, setTargetLang] = useState('es');
   const [isLoading, setIsLoading] = useState(false);
   
-  // Results State
   const [definition, setDefinition] = useState(null);
   const [translation, setTranslation] = useState('');
   const [videos, setVideos] = useState([]);
@@ -23,41 +23,40 @@ export default function WordSearch() {
     setVideos([]);
 
     try {
-      // 1. Fetch Definition (Free Dictionary API)
+      // 1. Fetch Definition
       const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
       if (dictRes.ok) {
         const dictData = await dictRes.json();
         setDefinition(dictData[0]);
       } else {
-        // Simple fallback definition
         setDefinition({
           word,
-          meanings: [{ partOfSpeech: 'noun', definitions: [{ definition: `Definition not found for "${word}".` }] }]
+          meanings: [{ partOfSpeech: 'noun', definitions: [{ definition: lang === 'ar' ? `لم يتم العثور على تعريف لـ "${word}".` : `Definition not found for "${word}".` }] }]
         });
       }
 
-      // 2. Fetch Translation (MyMemory Translation API)
+      // 2. Fetch Translation
       const transRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|${targetLang}`);
       if (transRes.ok) {
         const transData = await transRes.json();
         setTranslation(transData.responseData?.translatedText || 'Translation unavailable.');
       } else {
-        setTranslation('Translation rate-limited or unavailable.');
+        setTranslation('Translation rate-limited.');
       }
 
-      // 3. Fetch YouTube Video Context (if YouTube API Key is set)
+      // 3. Fetch YouTube Video Context
       if (settings.youtubeKey) {
         const ytRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=3&q=${encodeURIComponent(word + ' pronunciation english')}&type=video&key=${settings.youtubeKey}`);
         if (ytRes.ok) {
           const ytData = await ytRes.json();
           setVideos(ytData.items || []);
         } else {
-          throw new Error('YouTube API call failed.');
+          throw new Error('YouTube API failed.');
         }
       }
     } catch (err) {
       console.error(err);
-      addToast('YouTube video search failed. Check your API key in settings.', 'error');
+      addToast(lang === 'ar' ? 'فشل البحث عن فيديوهات. يرجى التحقق من المفتاح في الإعدادات.' : 'YouTube video search failed. Check your API key in settings.', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -70,21 +69,21 @@ export default function WordSearch() {
         const audio = new Audio(audioUrl);
         audio.play().catch(e => console.error(e));
       } else {
-        addToast('No audio pronunciation available.', 'info');
+        addToast(lang === 'ar' ? 'لا يوجد نطق صوتي متاح لهذه الكلمة.' : 'No audio pronunciation available.', 'info');
       }
     }
   };
 
   const getLanguageName = (code) => {
     const list = {
-      es: 'Spanish',
-      fr: 'French',
-      de: 'German',
-      it: 'Italian',
-      ar: 'Arabic',
-      zh: 'Chinese',
-      ja: 'Japanese',
-      ru: 'Russian'
+      es: lang === 'ar' ? 'الإسبانية' : 'Spanish',
+      fr: lang === 'ar' ? 'الفرنسية' : 'French',
+      de: lang === 'ar' ? 'الألمانية' : 'German',
+      it: lang === 'ar' ? 'الإيطالية' : 'Italian',
+      ar: lang === 'ar' ? 'العربية' : 'Arabic',
+      zh: lang === 'ar' ? 'الصينية' : 'Chinese',
+      ja: lang === 'ar' ? 'اليابانية' : 'Japanese',
+      ru: lang === 'ar' ? 'الروسية' : 'Russian'
     };
     return list[code] || code;
   };
@@ -94,10 +93,12 @@ export default function WordSearch() {
       {/* Title */}
       <div>
         <h1 style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Video size={28} color="var(--accent-cyan)" /> Context Word Search
+          <Video size={28} color="var(--accent-cyan)" /> {t('word-search')}
         </h1>
         <p style={{ color: 'var(--text-secondary)' }}>
-          Search any vocabulary word to view translations, meanings, and hear pronunciations in real YouTube videos.
+          {lang === 'ar' 
+            ? 'ابحث عن أي كلمة باللغة الإنجليزية لعرض ترجمتها وتعريفها وسماع نطقها في مقاطع يوتيوب واقعية.'
+            : 'Search any vocabulary word to view translations, meanings, and hear pronunciations in real YouTube videos.'}
         </p>
       </div>
 
@@ -107,13 +108,13 @@ export default function WordSearch() {
           <input
             type="text"
             className="form-input"
-            placeholder="Type a word in English (e.g. photosynthesis, ephemeral, query)..."
+            placeholder={lang === 'ar' ? 'اكتب كلمة بالإنجليزية (مثل: photosynthesis, ephemeral)...' : 'Type a word in English...'}
             value={word}
             onChange={(e) => setWord(e.target.value)}
             required
-            style={{ paddingLeft: '44px' }}
+            style={{ paddingLeft: lang === 'en' ? '44px' : '16px', paddingRight: lang === 'ar' ? '44px' : '16px' }}
           />
-          <Search size={18} style={{ position: 'absolute', left: '16px', top: '14px', color: 'var(--text-muted)' }} />
+          <Search size={18} style={{ position: 'absolute', left: lang === 'en' ? '16px' : 'auto', right: lang === 'ar' ? '16px' : 'auto', top: '14px', color: 'var(--text-muted)' }} />
         </div>
 
         <select
@@ -122,26 +123,26 @@ export default function WordSearch() {
           value={targetLang}
           onChange={(e) => setTargetLang(e.target.value)}
         >
-          <option value="es">Spanish</option>
-          <option value="fr">French</option>
-          <option value="de">German</option>
-          <option value="it">Italian</option>
-          <option value="ar">Arabic</option>
-          <option value="zh">Chinese</option>
-          <option value="ja">Japanese</option>
-          <option value="ru">Russian</option>
+          <option value="es">{lang === 'ar' ? 'الإسبانية' : 'Spanish'}</option>
+          <option value="fr">{lang === 'ar' ? 'الفرنسية' : 'French'}</option>
+          <option value="de">{lang === 'ar' ? 'الألمانية' : 'German'}</option>
+          <option value="it">{lang === 'ar' ? 'الإيطالية' : 'Italian'}</option>
+          <option value="ar">{lang === 'ar' ? 'العربية' : 'Arabic'}</option>
+          <option value="zh">{lang === 'ar' ? 'الصينية' : 'Chinese'}</option>
+          <option value="ja">{lang === 'ar' ? 'اليابانية' : 'Japanese'}</option>
+          <option value="ru">{lang === 'ar' ? 'الروسية' : 'Russian'}</option>
         </select>
 
         <button type="submit" className="btn btn-primary" disabled={isLoading} style={{ minWidth: '120px' }}>
-          {isLoading ? <Loader size={16} className="pulsing-mic" style={{ animation: 'spin 1s linear infinite', background: 'none' }} /> : 'Search Word'}
+          {isLoading ? <Loader size={16} className="pulsing-mic" style={{ animation: 'spin 1s linear infinite', background: 'none' }} /> : (lang === 'ar' ? 'بحث' : 'Search Word')}
         </button>
       </form>
 
       {/* Loading Skeletons */}
       {isLoading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div className="glass-card" style={{ height: '140px', opacity: 0.5 }}>Loading vocabulary data...</div>
-          <div className="glass-card" style={{ height: '200px', opacity: 0.5 }}>Fetching video context...</div>
+          <div className="glass-card" style={{ height: '140px', opacity: 0.5 }}>{lang === 'ar' ? 'جاري تحميل تعريفات الكلمة...' : 'Loading vocabulary data...'}</div>
+          <div className="glass-card" style={{ height: '200px', opacity: 0.5 }}>{lang === 'ar' ? 'جاري تحميل مقاطع فيديو النطق...' : 'Fetching video context...'}</div>
         </div>
       )}
 
@@ -149,14 +150,13 @@ export default function WordSearch() {
       {!isLoading && (definition || translation) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
           
-          {/* Card: Definition & Translation */}
           <div className="grid grid-2" style={{ gap: '24px' }}>
             <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyBetween: 'space-between' }}>
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <h3 style={{ fontSize: '1.4rem', textTransform: 'capitalize' }}>📖 {definition?.word || word}</h3>
                   {definition?.phonetics?.some(p => p.audio) && (
-                    <button className="btn btn-secondary btn-icon" onClick={playPronunciation} title="Listen Pronunciation">
+                    <button className="btn btn-secondary btn-icon" onClick={playPronunciation} title={lang === 'ar' ? 'استمع للنطق' : 'Listen Pronunciation'}>
                       <Volume2 size={16} color="var(--accent-cyan)" />
                     </button>
                   )}
@@ -181,21 +181,21 @@ export default function WordSearch() {
 
             <div className="glass-card">
               <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Globe size={18} color="var(--accent-cyan)" /> Translation ({getLanguageName(targetLang)})
+                <Globe size={18} color="var(--accent-cyan)" /> {lang === 'ar' ? `الترجمة إلى (${getLanguageName(targetLang)})` : `Translation (${getLanguageName(targetLang)})`}
               </h3>
               <div style={{ background: 'var(--bg-primary)', padding: '16px', borderRadius: '10px', minHeight: '100px', border: '1px solid var(--border-color)' }}>
                 <p style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--accent-cyan)' }}>{translation}</p>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '20px' }}>
-                  Translated via MyMemory Translator
+                  {lang === 'ar' ? 'تمت الترجمة بواسطة MyMemory' : 'Translated via MyMemory Translator'}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Card: YouTube Video Context */}
+          {/* YouTube Video Context */}
           <div className="glass-card">
             <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Video size={18} color="var(--accent-cyan)" /> Real-World Pronunciation Context
+              <Video size={18} color="var(--accent-cyan)" /> {lang === 'ar' ? 'نطق الكلمة في سياقها الواقعي' : 'Real-World Pronunciation Context'}
             </h3>
 
             {settings.youtubeKey && videos.length > 0 ? (
@@ -221,7 +221,9 @@ export default function WordSearch() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '20px', textAlign: 'center' }}>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', maxWidth: '500px' }}>
-                  To load real-world YouTube video contexts directly inline, please configure a **YouTube Data API Key** in settings.
+                  {lang === 'ar' 
+                    ? 'لتشغيل فيديوهات النطق والتهجئة مباشرة داخل التطبيق، يرجى كتابة مفتاح YouTube API Key الخاص بك في الإعدادات.' 
+                    : 'To load real-world YouTube video contexts directly inline, please configure a YouTube Data API Key in settings.'}
                 </p>
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <a
@@ -231,7 +233,7 @@ export default function WordSearch() {
                     className="btn btn-primary"
                     style={{ fontSize: '0.85rem' }}
                   >
-                    Open YouGlish Pronunciation <ExternalLink size={14} />
+                    {lang === 'ar' ? 'فتح موقع YouGlish للنطق' : 'Open YouGlish Pronunciation'} <ExternalLink size={14} />
                   </a>
                   <a
                     href={`https://www.youtube.com/results?search_query=${encodeURIComponent(word + ' pronunciation')}`}
@@ -240,7 +242,7 @@ export default function WordSearch() {
                     className="btn btn-secondary"
                     style={{ fontSize: '0.85rem' }}
                   >
-                    Search on YouTube <ExternalLink size={14} />
+                    {lang === 'ar' ? 'بحث في موقع يوتيوب' : 'Search on YouTube'} <ExternalLink size={14} />
                   </a>
                 </div>
               </div>

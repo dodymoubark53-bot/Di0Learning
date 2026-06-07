@@ -1,9 +1,9 @@
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../context/AppContext';
-import { Plus, Trash, ChevronLeft, ChevronRight, Calendar, Clock, BookOpen } from 'lucide-react';
+import { Plus, Trash, ChevronLeft, ChevronRight, Calendar, Clock } from 'lucide-react';
 
 export default function Schedule() {
-  const { schedule, addSession, deleteSession, decks } = useContext(AppContext);
+  const { schedule, addSession, deleteSession, decks, t, lang } = useContext(AppContext);
 
   // Calendar State
   const today = new Date();
@@ -19,14 +19,21 @@ export default function Schedule() {
   const [color, setColor] = useState('#9b51e0');
   const [notes, setNotes] = useState('');
 
-  // Selected session detail state
+  // Selected session details
   const [selectedSession, setSelectedSession] = useState(null);
 
-  // Month navigation helpers
-  const monthNames = [
+  // Month Names Localized
+  const monthNamesEN = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
+
+  const monthNamesAR = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+  ];
+
+  const monthNames = lang === 'ar' ? monthNamesAR : monthNamesEN;
 
   const handlePrevMonth = () => {
     if (currentMonth === 0) {
@@ -46,18 +53,16 @@ export default function Schedule() {
     }
   };
 
-  // Grid Calculations
+  // Grid math
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay(); // 0 is Sunday
+  const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
 
   const calendarCells = [];
   
-  // Padding cells before start of month
   for (let i = 0; i < firstDayIndex; i++) {
     calendarCells.push({ key: `pad-${i}`, dateNum: null, dateStr: '', isToday: false });
   }
 
-  // Active month days
   for (let d = 1; d <= daysInMonth; d++) {
     const formattedDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const isToday = today.getDate() === d && today.getMonth() === currentMonth && today.getFullYear() === currentYear;
@@ -82,7 +87,6 @@ export default function Schedule() {
       notes
     });
 
-    // Reset Form
     setSubject('');
     setDate('');
     setTime('12:00');
@@ -100,24 +104,30 @@ export default function Schedule() {
     { label: 'Rose', hex: '#f43f5e' }
   ];
 
+  const dayHeadersEN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayHeadersAR = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+  const dayHeaders = lang === 'ar' ? dayHeadersAR : dayHeadersEN;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      {/* Calendar header layout */}
+      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '2rem' }}>Study Planner 📅</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Schedule topics, organize sessions, and check study dates.</p>
+          <h1 style={{ fontSize: '2rem' }}>{lang === 'ar' ? 'جدول الدراسة' : 'Study Planner'} 📅</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            {lang === 'ar' ? 'جدولة المواد، وتنظيم جلسات الدراسة، والتحقق من مواعيد الامتحانات.' : 'Schedule topics, organize sessions, and check study dates.'}
+          </p>
         </div>
         <button className="btn btn-primary" onClick={() => {
           setDate(today.toISOString().split('T')[0]);
           setShowAddForm(true);
         }}>
-          <Plus size={18} /> Schedule Session
+          <Plus size={18} /> {lang === 'ar' ? 'جدولة جلسة' : 'Schedule Session'}
         </button>
       </div>
 
       <div className="grid grid-2" style={{ gap: '30px', gridTemplateColumns: '1.4fr 0.6fr' }}>
-        {/* Left: Monthly Grid Calendar */}
+        {/* Left: Month calendar grid */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ fontSize: '1.4rem' }}>
@@ -125,17 +135,17 @@ export default function Schedule() {
             </h2>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button className="btn btn-secondary btn-icon" style={{ width: '32px', height: '32px' }} onClick={handlePrevMonth}>
-                <ChevronLeft size={16} />
+                <ChevronLeft size={16} style={{ transform: lang === 'ar' ? 'rotate(180deg)' : 'none' }} />
               </button>
               <button className="btn btn-secondary btn-icon" style={{ width: '32px', height: '32px' }} onClick={handleNextMonth}>
-                <ChevronRight size={16} />
+                <ChevronRight size={16} style={{ transform: lang === 'ar' ? 'rotate(180deg)' : 'none' }} />
               </button>
             </div>
           </div>
 
           <div style={{ overflowX: 'auto' }}>
             <div className="calendar-grid">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+              {dayHeaders.map(day => (
                 <div key={day} className="calendar-day-header">{day}</div>
               ))}
 
@@ -169,16 +179,15 @@ export default function Schedule() {
           </div>
         </div>
 
-        {/* Right side panel */}
+        {/* Right Agenda sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Calendar Agenda */}
           <div className="glass-card">
             <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Calendar size={18} color="var(--accent-cyan)" /> Session Agenda
+              <Calendar size={18} color="var(--accent-cyan)" /> {lang === 'ar' ? 'أجندة الجلسات' : 'Session Agenda'}
             </h3>
             {schedule.length === 0 ? (
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                No sessions scheduled yet. Use the scheduler button to add one.
+                {lang === 'ar' ? 'لا توجد جلسات دراسية مجدولة بعد.' : 'No sessions scheduled yet.'}
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '420px', overflowY: 'auto' }}>
@@ -218,14 +227,16 @@ export default function Schedule() {
       {showAddForm && (
         <div className="crop-overlay-container" style={{ padding: '20px' }}>
           <form onSubmit={handleAddSubmit} className="glass-card" style={{ maxWidth: '480px', width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h2 style={{ color: 'var(--accent-cyan)', fontSize: '1.4rem' }}>Schedule Study Session</h2>
+            <h2 style={{ color: 'var(--accent-cyan)', fontSize: '1.4rem' }}>
+              {lang === 'ar' ? 'جدولة جلسة دراسية جديدة' : 'Schedule Study Session'}
+            </h2>
             
             <div className="form-group">
-              <label className="form-label">Subject / Deck Name</label>
+              <label className="form-label">{lang === 'ar' ? 'الموضوع / اسم المجلد' : 'Subject / Deck Name'}</label>
               <input 
                 type="text" 
                 className="form-input" 
-                placeholder="e.g. Calculus review, Chemistry ch. 4..."
+                placeholder="..."
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 required
@@ -238,7 +249,7 @@ export default function Schedule() {
 
             <div className="grid grid-2" style={{ gap: '12px' }}>
               <div className="form-group">
-                <label className="form-label">Date</label>
+                <label className="form-label">{lang === 'ar' ? 'التاريخ' : 'Date'}</label>
                 <input 
                   type="date" 
                   className="form-input" 
@@ -248,7 +259,7 @@ export default function Schedule() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Time</label>
+                <label className="form-label">{lang === 'ar' ? 'الوقت' : 'Time'}</label>
                 <input 
                   type="time" 
                   className="form-input" 
@@ -261,7 +272,7 @@ export default function Schedule() {
 
             <div className="grid grid-2" style={{ gap: '12px' }}>
               <div className="form-group">
-                <label className="form-label">Duration (Minutes)</label>
+                <label className="form-label">{lang === 'ar' ? 'المدة (بالدقائق)' : 'Duration (Minutes)'}</label>
                 <input 
                   type="number" 
                   className="form-input" 
@@ -273,7 +284,7 @@ export default function Schedule() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Accent Tag Color</label>
+                <label className="form-label">{lang === 'ar' ? 'لون العلامة' : 'Accent Tag Color'}</label>
                 <div style={{ display: 'flex', gap: '6px', height: '42px', alignItems: 'center' }}>
                   {colorsList.map(c => (
                     <button
@@ -296,11 +307,11 @@ export default function Schedule() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Planner Notes / Goals</label>
+              <label className="form-label">{lang === 'ar' ? 'ملاحظات المخطط / الأهداف' : 'Planner Notes / Goals'}</label>
               <textarea 
                 className="form-textarea" 
                 rows={3} 
-                placeholder="Detail what you plan to accomplish (e.g. solve 10 integrals)..."
+                placeholder="..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
@@ -308,10 +319,10 @@ export default function Schedule() {
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
               <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                Save Session
+                {lang === 'ar' ? 'حفظ الجلسة' : 'Save Session'}
               </button>
               <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm(false)}>
-                Cancel
+                {t('btn_cancel')}
               </button>
             </div>
           </form>
@@ -341,22 +352,24 @@ export default function Schedule() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.95rem' }}>
               <p style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Calendar size={16} color="var(--text-secondary)" /> 
-                <span><strong>Date:</strong> {selectedSession.date}</span>
+                <span><strong>{lang === 'ar' ? 'التاريخ' : 'Date'}:</strong> {selectedSession.date}</span>
               </p>
               <p style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Clock size={16} color="var(--text-secondary)" /> 
-                <span><strong>Time:</strong> {selectedSession.time} ({selectedSession.duration} minutes)</span>
+                <span><strong>{lang === 'ar' ? 'الوقت' : 'Time'}:</strong> {selectedSession.time} ({selectedSession.duration} {lang === 'ar' ? 'دقيقة' : 'minutes'})</span>
               </p>
               {selectedSession.notes && (
                 <div style={{ background: 'var(--bg-primary)', padding: '12px', borderRadius: '8px', marginTop: '6px' }}>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>Notes</p>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>
+                    {lang === 'ar' ? 'الملاحظات' : 'Notes'}
+                  </p>
                   <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{selectedSession.notes}</p>
                 </div>
               )}
             </div>
 
             <button className="btn btn-secondary" onClick={() => setSelectedSession(null)} style={{ marginTop: '10px' }}>
-              Close details
+              {lang === 'ar' ? 'إغلاق التفاصيل' : 'Close details'}
             </button>
           </div>
         </div>

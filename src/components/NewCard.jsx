@@ -12,14 +12,126 @@ import {
   Check
 } from 'lucide-react';
 
+// Specialized audio player playback component for voice notes
+function AudioPlayControls({ file, onRemove }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio(url);
+    audioRef.current = audio;
+
+    const timeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
+    
+    const loadedMetadata = () => {
+      setDuration(audio.duration || 0);
+    };
+
+    const ended = () => {
+      setIsPlaying(false);
+      setCurrentTime(0);
+    };
+
+    audio.addEventListener('timeupdate', timeUpdate);
+    audio.addEventListener('loadedmetadata', loadedMetadata);
+    audio.addEventListener('ended', ended);
+
+    return () => {
+      audio.pause();
+      audio.removeEventListener('timeupdate', timeUpdate);
+      audio.removeEventListener('loadedmetadata', loadedMetadata);
+      audio.removeEventListener('ended', ended);
+      URL.revokeObjectURL(url);
+    };
+  }, [file]);
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().catch(e => console.error(e));
+      setIsPlaying(true);
+    }
+  };
+
+  const handleProgressClick = (e) => {
+    if (!audioRef.current || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const width = rect.width;
+    const newPercentage = clickX / width;
+    audioRef.current.currentTime = newPercentage * duration;
+    setCurrentTime(audioRef.current.currentTime);
+  };
+
+  const formatTime = (secs) => {
+    if (isNaN(secs)) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const progressPercent = duration ? (currentTime / duration) * 100 : 0;
+
+  return (
+    <div className="voice-playback-container">
+      <button 
+        type="button" 
+        className="btn btn-secondary btn-icon" 
+        style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+        onClick={togglePlay}
+      >
+        {isPlaying ? <span style={{ fontSize: '0.8rem' }}>⏸️</span> : <span style={{ fontSize: '0.8rem' }}>▶️</span>}
+      </button>
+      
+      {/* Timeline tracker */}
+      <div className="playback-progress-bar" onClick={handleProgressClick}>
+        <div className="playback-progress-fill" style={{ width: `${progressPercent}%` }} />
+      </div>
+
+      {/* Timer */}
+      <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', minWidth: '70px', textAlign: 'center' }}>
+        {formatTime(currentTime)} / {formatTime(duration)}
+      </span>
+
+      {/* Delete / Reset */}
+      <button 
+        type="button" 
+        className="btn btn-danger btn-icon" 
+        style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+        onClick={onRemove}
+        title="Delete recording"
+      >
+        <Trash size={12} />
+      </button>
+    </div>
+  );
+}
+
 export default function NewCard() {
-  const { decks, addCard, setActiveTab, addToast } = useContext(AppContext);
+  const { decks, addCard, setActiveTab, addToast, t, lang } = useContext(AppContext);
 
   // Form State
   const [template, setTemplate] = useState('flashcard');
   const [deckId, setDeckId] = useState('General');
   const [newDeckName, setNewDeckName] = useState('');
   const [isCreatingDeck, setIsCreatingDeck] = useState(false);
+
+  // Check for preselected redirect deck
+  useEffect(() => {
+    const pre = localStorage.getItem('preSelectedDeck');
+    if (pre) {
+      setDeckId(pre);
+      localStorage.removeItem('preSelectedDeck');
+    }
+  }, []);
 
   // Field Values
   const [question, setQuestion] = useState('');
@@ -28,19 +140,23 @@ export default function NewCard() {
   const [correctAnswer, setCorrectAnswer] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Media Attachments State (Stores file objects or Blobs)
-  const [attachedFiles, setAttachedFiles] = useState({}); // { question: File/Blob, answer: File/Blob, notes: File/Blob }
+  // Media Attachments State (Stores File/Blob objects grouped by field and type)
+  const [attachedFiles, setAttachedFiles] = useState({
+    question: { image: null, audio: null },
+    answer: { image: null, audio: null },
+    notes: { image: null, audio: null }
+  });
 
   // Speech-to-Text / Audio Recording state
-  const [activeRecordingField, setActiveRecordingField] = useState(null); // 'question' | 'answer' | 'notes'
+  const [activeRecordingField, setActiveRecordingField] = useState(null);
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [audioChunks, setAudioChunks] = useState([]);
   const [recognition, setRecognition] = useState(null);
 
   // Camera Capture state
-  const [cameraField, setCameraField] = useState(null); // 'question' | 'answer' | 'notes'
+  const [cameraField, setCameraField] = useState(null);
   const [cameraStream, setCameraStream] = useState(null);
-  const [capturedImage, setCapturedImage] = useState(null); // base64 string
+  const [capturedImage, setCapturedImage] = useState(null);
   
   // Crop overlay states
   const [cropBox, setCropBox] = useState({ x: 50, y: 50, w: 200, h: 200 });
@@ -54,12 +170,12 @@ export default function NewCard() {
       const rec = new SpeechRecognition();
       rec.continuous = true;
       rec.interimResults = true;
-      rec.lang = 'en-US';
+      rec.lang = lang === 'ar' ? 'ar-SA' : 'en-US';
       setRecognition(rec);
     }
-  }, []);
+  }, [lang]);
 
-  // Sync Recognition to input updates
+  // Sync Recognition results
   useEffect(() => {
     if (!recognition || !activeRecordingField) return;
 
@@ -88,6 +204,11 @@ export default function NewCard() {
   const startRecording = async (field) => {
     if (activeRecordingField) return;
 
+    if (attachedFiles[field]?.audio) {
+      const confirmReplace = window.confirm('Replace existing recording?');
+      if (!confirmReplace) return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
@@ -99,11 +220,17 @@ export default function NewCard() {
 
       recorder.onstop = () => {
         const audioBlob = new Blob(chunks, { type: 'audio/webm' });
-        // Set file attachment
+        // Generate named voice note
         const audioFile = new File([audioBlob], `voice_note_${field}_${Date.now()}.webm`, { type: 'audio/webm' });
-        setAttachedFiles(prev => ({ ...prev, [field]: audioFile }));
+        setAttachedFiles(prev => ({
+          ...prev,
+          [field]: {
+            ...prev[field],
+            audio: audioFile
+          }
+        }));
         stream.getTracks().forEach(track => track.stop());
-        addToast('Audio note captured and linked to card.', 'success');
+        addToast('Voice recording completed!', 'success');
       };
 
       setMediaRecorder(recorder);
@@ -131,35 +258,74 @@ export default function NewCard() {
     setMediaRecorder(null);
   };
 
+  const processAttachedFile = (file, field) => {
+    if (!file) return;
+    const isImage = file.type.startsWith('image/');
+    const isAudio = file.type.startsWith('audio/');
+    
+    if (isImage) {
+      if (attachedFiles[field]?.image) {
+        const confirmReplace = window.confirm('Replace existing image?');
+        if (!confirmReplace) return;
+      }
+      setAttachedFiles(prev => ({
+        ...prev,
+        [field]: {
+          ...prev[field],
+          image: file
+        }
+      }));
+      addToast(`Attached image: ${file.name}`, 'success');
+    } else if (isAudio) {
+      if (attachedFiles[field]?.audio) {
+        const confirmReplace = window.confirm('Replace existing recording?');
+        if (!confirmReplace) return;
+      }
+      setAttachedFiles(prev => ({
+        ...prev,
+        [field]: {
+          ...prev[field],
+          audio: file
+        }
+      }));
+      addToast(`Attached audio: ${file.name}`, 'success');
+    } else {
+      addToast('Unsupported file type. Please upload an image or audio file.', 'error');
+    }
+  };
+
   // Drag and Drop files
   const handleFileDrop = (e, field) => {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      setAttachedFiles(prev => ({ ...prev, [field]: file }));
-      addToast(`Attached ${file.name}`, 'success');
+      processAttachedFile(file, field);
     }
   };
 
   const handleFileSelect = (e, field) => {
     const file = e.target.files?.[0];
     if (file) {
-      setAttachedFiles(prev => ({ ...prev, [field]: file }));
-      addToast(`Attached ${file.name}`, 'success');
+      processAttachedFile(file, field);
     }
   };
 
-  const removeAttachment = (field) => {
+  const removeAttachment = (field, type) => {
     setAttachedFiles(prev => {
-      const updated = { ...prev };
-      delete updated[field];
-      return updated;
+      const fieldMedia = prev[field] || {};
+      const updatedFieldMedia = { ...fieldMedia };
+      updatedFieldMedia[type] = null;
+      return { ...prev, [field]: updatedFieldMedia };
     });
-    addToast('Attachment removed', 'info');
+    addToast(`${type === 'audio' ? 'Recording' : 'Image'} removed`, 'info');
   };
 
   // Camera logic
   const startCamera = async (field) => {
+    if (attachedFiles[field]?.image) {
+      const confirmReplace = window.confirm('Replace existing image?');
+      if (!confirmReplace) return;
+    }
     setCameraField(field);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
@@ -194,7 +360,7 @@ export default function NewCard() {
     }
   };
 
-  // Handle rendering of crop canvas preview
+  // Render crop preview
   useEffect(() => {
     if (!capturedImage) return;
 
@@ -205,20 +371,19 @@ export default function NewCard() {
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       
-      // Draw base photo fit-sized
       canvas.width = img.width > 500 ? 500 : img.width;
       canvas.height = (img.height / img.width) * canvas.width;
       
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      // Dark translucent mask over canvas
+      // Mask overlay
       ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Clear the crop box area
+      // Clear selection box
       ctx.clearRect(cropBox.x, cropBox.y, cropBox.w, cropBox.h);
 
-      // Redraw selected crop section in focus
+      // Draw focus image portion
       ctx.drawImage(
         img,
         (cropBox.x / canvas.width) * img.width,
@@ -231,7 +396,7 @@ export default function NewCard() {
         cropBox.h
       );
 
-      // Draw border edge on crop box
+      // Draw selection border
       ctx.strokeStyle = 'var(--accent-cyan)';
       ctx.lineWidth = 2;
       ctx.strokeRect(cropBox.x, cropBox.y, cropBox.w, cropBox.h);
@@ -262,12 +427,17 @@ export default function NewCard() {
 
       exportCanvas.toBlob(blob => {
         const croppedFile = new File([blob], `snap_${cameraField}_${Date.now()}.jpg`, { type: 'image/jpeg' });
-        setAttachedFiles(prev => ({ ...prev, [cameraField]: croppedFile }));
+        setAttachedFiles(prev => ({
+          ...prev,
+          [cameraField]: {
+            ...prev[cameraField],
+            image: croppedFile
+          }
+        }));
         
-        // Reset state
         setCapturedImage(null);
         setCameraField(null);
-        addToast('Cropped camera snap added to card.', 'success');
+        addToast('Camera snaps saved.', 'success');
       }, 'image/jpeg');
     };
   };
@@ -281,11 +451,9 @@ export default function NewCard() {
     setCameraField(null);
   };
 
-  // Save Card Submit Handler
   const handleSave = async (e) => {
     e.preventDefault();
 
-    // Validations
     if (template === 'flashcard' && (!question.trim() || !answer.trim())) {
       addToast('Please input both question and answer.', 'error');
       return;
@@ -312,49 +480,63 @@ export default function NewCard() {
     const cardPayload = {
       deckId: finalDeck,
       template,
-      question: template === 'free-note' ? question : question, // Question or Title
+      question,
       answer: template === 'flashcard' ? answer : '',
       options: template === 'multiple-choice' ? options : [],
       correctAnswer: (template === 'multiple-choice' || template === 'true-false') ? correctAnswer : '',
       notes: template === 'free-note' ? notes : ''
     };
 
-    // Save Card
-    await addCard(cardPayload, attachedFiles);
+    const mediaFilesToSubmit = {};
+    for (const fKey of ['question', 'answer', 'notes']) {
+      const fieldMedia = attachedFiles[fKey];
+      if (fieldMedia) {
+        if (fieldMedia.image) {
+          mediaFilesToSubmit[`${fKey}_image`] = fieldMedia.image;
+        }
+        if (fieldMedia.audio) {
+          mediaFilesToSubmit[`${fKey}_audio`] = fieldMedia.audio;
+        }
+      }
+    }
 
-    // Reset Form Fields
+    await addCard(cardPayload, mediaFilesToSubmit);
+
     setQuestion('');
     setAnswer('');
     setOptions(['', '', '', '']);
     setCorrectAnswer('');
     setNotes('');
-    setAttachedFiles({});
+    setAttachedFiles({
+      question: { image: null, audio: null },
+      answer: { image: null, audio: null },
+      notes: { image: null, audio: null }
+    });
     if (isCreatingDeck) {
       setNewDeckName('');
       setIsCreatingDeck(false);
       setDeckId(finalDeck);
     }
 
-    // Switch back to view cards
     setActiveTab('cards');
   };
 
   return (
     <div style={{ maxWidth: '720px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div>
-        <h1 style={{ fontSize: '2rem' }}>Create Study Card ➕</h1>
-        <p style={{ color: 'var(--text-secondary)' }}>Choose a template layout and input your academic materials.</p>
+        <h1 style={{ fontSize: '2rem' }}>{t('create_card_title')} ➕</h1>
+        <p style={{ color: 'var(--text-secondary)' }}>{t('create_card_desc')}</p>
       </div>
 
       {/* Select Template Toggle */}
       <div className="glass-card" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', padding: '12px' }}>
-        {['flashcard', 'multiple-choice', 'true-false', 'free-note'].map(t => (
+        {['flashcard', 'multiple-choice', 'true-false', 'free-note'].map(tType => (
           <button
-            key={t}
+            key={tType}
             type="button"
-            className={`btn ${template === t ? 'btn-primary' : 'btn-secondary'}`}
+            className={`btn ${template === tType ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => {
-              setTemplate(t);
+              setTemplate(tType);
               setQuestion('');
               setAnswer('');
               setNotes('');
@@ -362,7 +544,7 @@ export default function NewCard() {
             }}
             style={{ fontSize: '0.8rem', padding: '10px 4px', textTransform: 'capitalize' }}
           >
-            {t.replace('-', ' ')}
+            {tType.replace('-', ' ')}
           </button>
         ))}
       </div>
@@ -370,7 +552,7 @@ export default function NewCard() {
       <form onSubmit={handleSave} className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* Select Deck Name */}
         <div className="form-group">
-          <label className="form-label">Deck / Subject</label>
+          <label className="form-label">{t('deck_label')}</label>
           <div style={{ display: 'flex', gap: '12px' }}>
             {!isCreatingDeck ? (
               <>
@@ -385,7 +567,7 @@ export default function NewCard() {
                   ))}
                 </select>
                 <button type="button" className="btn btn-secondary" onClick={() => setIsCreatingDeck(true)}>
-                  Create Deck
+                  {t('create_deck')}
                 </button>
               </>
             ) : (
@@ -393,12 +575,12 @@ export default function NewCard() {
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="New deck name (e.g. Physics, History)..."
+                  placeholder={t('deck_name_placeholder')}
                   value={newDeckName}
                   onChange={(e) => setNewDeckName(e.target.value)}
                 />
                 <button type="button" className="btn btn-secondary" onClick={() => setIsCreatingDeck(false)}>
-                  Use Existing
+                  {t('use_existing')}
                 </button>
               </>
             )}
@@ -411,17 +593,17 @@ export default function NewCard() {
         {template === 'flashcard' && (
           <>
             <div className="form-group">
-              <label className="form-label">Front Side (Question / Concept)</label>
+              <label className="form-label">{t('front_label')}</label>
               <textarea
                 className="form-textarea"
                 rows={3}
-                placeholder="Write front side question or concept..."
+                placeholder="..."
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
               />
               <InputToolbar 
                 field="question" 
-                attachedFile={attachedFiles.question} 
+                attachedMedia={attachedFiles.question} 
                 onFileSelect={handleFileSelect} 
                 onFileDrop={handleFileDrop}
                 onRemoveFile={removeAttachment}
@@ -429,21 +611,22 @@ export default function NewCard() {
                 onStopMic={stopRecording}
                 onStartCamera={startCamera}
                 isRecording={activeRecordingField === 'question'}
+                t={t}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Back Side (Definition / Answer)</label>
+              <label className="form-label">{t('back_label')}</label>
               <textarea
                 className="form-textarea"
                 rows={3}
-                placeholder="Write back side definition or answer..."
+                placeholder="..."
                 value={answer}
                 onChange={(e) => setAnswer(e.target.value)}
               />
               <InputToolbar 
                 field="answer" 
-                attachedFile={attachedFiles.answer} 
+                attachedMedia={attachedFiles.answer} 
                 onFileSelect={handleFileSelect} 
                 onFileDrop={handleFileDrop}
                 onRemoveFile={removeAttachment}
@@ -451,6 +634,7 @@ export default function NewCard() {
                 onStopMic={stopRecording}
                 onStartCamera={startCamera}
                 isRecording={activeRecordingField === 'answer'}
+                t={t}
               />
             </div>
           </>
@@ -460,17 +644,17 @@ export default function NewCard() {
         {template === 'multiple-choice' && (
           <>
             <div className="form-group">
-              <label className="form-label">Question</label>
+              <label className="form-label">{t('question_label')}</label>
               <textarea
                 className="form-textarea"
                 rows={3}
-                placeholder="Type the question..."
+                placeholder="..."
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
               />
               <InputToolbar 
                 field="question" 
-                attachedFile={attachedFiles.question} 
+                attachedMedia={attachedFiles.question} 
                 onFileSelect={handleFileSelect} 
                 onFileDrop={handleFileDrop}
                 onRemoveFile={removeAttachment}
@@ -478,11 +662,12 @@ export default function NewCard() {
                 onStopMic={stopRecording}
                 onStartCamera={startCamera}
                 isRecording={activeRecordingField === 'question'}
+                t={t}
               />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <label className="form-label">Answer Options</label>
+              <label className="form-label">{t('options_label')}</label>
               {options.map((opt, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontWeight: '700', color: 'var(--text-secondary)' }}>
@@ -504,13 +689,13 @@ export default function NewCard() {
             </div>
 
             <div className="form-group" style={{ marginTop: '10px' }}>
-              <label className="form-label">Correct Key Option</label>
+              <label className="form-label">{t('correct_key_label')}</label>
               <select
                 className="form-select"
                 value={correctAnswer}
                 onChange={(e) => setCorrectAnswer(e.target.value)}
               >
-                <option value="">Choose correct option...</option>
+                <option value="">...</option>
                 <option value="A">A</option>
                 <option value="B">B</option>
                 <option value="C">C</option>
@@ -524,17 +709,17 @@ export default function NewCard() {
         {template === 'true-false' && (
           <>
             <div className="form-group">
-              <label className="form-label">Statement</label>
+              <label className="form-label">{t('statement_label')}</label>
               <textarea
                 className="form-textarea"
                 rows={3}
-                placeholder="Write the true/false statement..."
+                placeholder="..."
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
               />
               <InputToolbar 
                 field="question" 
-                attachedFile={attachedFiles.question} 
+                attachedMedia={attachedFiles.question} 
                 onFileSelect={handleFileSelect} 
                 onFileDrop={handleFileDrop}
                 onRemoveFile={removeAttachment}
@@ -542,11 +727,12 @@ export default function NewCard() {
                 onStopMic={stopRecording}
                 onStartCamera={startCamera}
                 isRecording={activeRecordingField === 'question'}
+                t={t}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Correct Answer</label>
+              <label className="form-label">{t('correct_key_label')}</label>
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button
                   type="button"
@@ -573,28 +759,28 @@ export default function NewCard() {
         {template === 'free-note' && (
           <>
             <div className="form-group">
-              <label className="form-label">Note Title / Topic</label>
+              <label className="form-label">{t('note_title_label')}</label>
               <input
                 type="text"
                 className="form-input"
-                placeholder="e.g. Mitochondria Structure, French Revolution Timeline..."
+                placeholder="..."
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Note Summary / Content</label>
+              <label className="form-label">{t('note_summary_label')}</label>
               <textarea
                 className="form-textarea"
                 rows={6}
-                placeholder="Write your study notes and summaries..."
+                placeholder="..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
               <InputToolbar 
                 field="notes" 
-                attachedFile={attachedFiles.notes} 
+                attachedMedia={attachedFiles.notes} 
                 onFileSelect={handleFileSelect} 
                 onFileDrop={handleFileDrop}
                 onRemoveFile={removeAttachment}
@@ -602,6 +788,7 @@ export default function NewCard() {
                 onStopMic={stopRecording}
                 onStartCamera={startCamera}
                 isRecording={activeRecordingField === 'notes'}
+                t={t}
               />
             </div>
           </>
@@ -610,15 +797,15 @@ export default function NewCard() {
         {/* Save & Cancel */}
         <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
           <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-            <Sparkles size={16} /> Save Card to Deck
+            <Sparkles size={16} /> {t('save_card_btn')}
           </button>
           <button type="button" className="btn btn-secondary" onClick={() => setActiveTab('cards')} style={{ flex: 0.3 }}>
-            Cancel
+            {t('btn_cancel')}
           </button>
         </div>
       </form>
 
-      {/* Video Capture & Cropper Modal Overlay */}
+      {/* Video Capture Modal */}
       {cameraField && (
         <div className="crop-overlay-container">
           {!capturedImage ? (
@@ -644,7 +831,6 @@ export default function NewCard() {
                 <canvas ref={cropCanvasRef} />
               </div>
 
-              {/* Crop Box Sliders */}
               <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Left margin:</span>
@@ -711,95 +897,101 @@ export default function NewCard() {
   );
 }
 
-// Media input bar component for text areas
+// Sub-component toolbar mapping input tools
 function InputToolbar({ 
   field, 
-  attachedFile, 
+  attachedMedia, 
   onFileSelect, 
   onFileDrop, 
   onRemoveFile, 
   onStartMic, 
   onStopMic, 
   onStartCamera, 
-  isRecording 
+  isRecording,
+  t
 }) {
+  const imageFile = attachedMedia?.image;
+  const audioFile = attachedMedia?.audio;
+
   return (
     <div 
       style={{
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
+        flexDirection: 'column',
         background: 'var(--bg-primary)',
         padding: '10px 14px',
         border: '1px solid var(--border-color)',
         borderTop: 'none',
         borderRadius: '0 0 10px 10px',
-        gap: '12px'
+        gap: '8px'
       }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => onFileDrop(e, field)}
     >
-      {/* Action Buttons */}
-      <div style={{ display: 'flex', gap: '6px' }}>
-        {/* Microphone STT */}
-        {!isRecording ? (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {!isRecording ? (
+            <button 
+              type="button" 
+              className="btn btn-secondary" 
+              style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px' }}
+              onClick={() => onStartMic(field)}
+            >
+              <Mic size={14} color="var(--accent-cyan)" /> {t('record_stt')}
+            </button>
+          ) : (
+            <button 
+              type="button" 
+              className="btn btn-danger pulsing-mic" 
+              style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px' }}
+              onClick={onStopMic}
+            >
+              <Square size={14} /> {t('stop_recording')}
+            </button>
+          )}
+
           <button 
             type="button" 
             className="btn btn-secondary" 
             style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px' }}
-            onClick={() => onStartMic(field)}
+            onClick={() => onStartCamera(field)}
           >
-            <Mic size={14} color="var(--accent-cyan)" /> Record STT
+            <Camera size={14} color="var(--accent-violet)" /> {t('camera_snap')}
           </button>
-        ) : (
-          <button 
-            type="button" 
-            className="btn btn-danger pulsing-mic" 
-            style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px' }}
-            onClick={onStopMic}
-          >
-            <Square size={14} /> Stop Recording
-          </button>
+
+          <label className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px', cursor: 'pointer' }}>
+            <Upload size={14} color="var(--accent-amber)" /> {t('upload_file')}
+            <input 
+              type="file" 
+              onChange={(e) => onFileSelect(e, field)} 
+              style={{ display: 'none' }} 
+              accept="image/*,audio/*"
+            />
+          </label>
+        </div>
+
+        {/* Image Attachment Display */}
+        {imageFile && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', background: 'var(--bg-tertiary)', padding: '4px 10px', borderRadius: '6px' }}>
+            <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              🖼️ {imageFile.name}
+            </span>
+            <button 
+              type="button" 
+              className="btn btn-danger btn-icon" 
+              style={{ width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={() => onRemoveFile(field, 'image')}
+            >
+              ×
+            </button>
+          </div>
         )}
-
-        {/* Camera capture */}
-        <button 
-          type="button" 
-          className="btn btn-secondary" 
-          style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px' }}
-          onClick={() => onStartCamera(field)}
-        >
-          <Camera size={14} color="var(--accent-violet)" /> Camera Snap
-        </button>
-
-        {/* File Picker */}
-        <label className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '0.8rem', gap: '4px', cursor: 'pointer' }}>
-          <Upload size={14} color="var(--accent-amber)" /> Upload File
-          <input 
-            type="file" 
-            onChange={(e) => onFileSelect(e, field)} 
-            style={{ display: 'none' }} 
-            accept="image/*,audio/*,video/*,application/pdf"
-          />
-        </label>
       </div>
 
-      {/* Attached item details */}
-      {attachedFile && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', background: 'var(--bg-tertiary)', padding: '4px 10px', borderRadius: '6px' }}>
-          <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            📎 {attachedFile.name}
-          </span>
-          <button 
-            type="button" 
-            className="btn btn-danger btn-icon" 
-            style={{ width: '18px', height: '18px' }}
-            onClick={() => onRemoveFile(field)}
-          >
-            ×
-          </button>
-        </div>
+      {/* Render Playback Slider controls if it is a recorded voice note */}
+      {audioFile && (
+        <AudioPlayControls file={audioFile} onRemove={() => onRemoveFile(field, 'audio')} />
       )}
     </div>
   );
