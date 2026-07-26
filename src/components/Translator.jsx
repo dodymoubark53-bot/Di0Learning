@@ -274,15 +274,18 @@ export default function Translator() {
   ];
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      {/* Header */}
-      <div>
-        <h1 style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Languages size={28} color="var(--accent-cyan)" /> Universal Translator
-        </h1>
-        <p style={{ color: 'var(--text-secondary)' }}>
-          Translate study guides, lecture summaries, or flashcards instantly across major languages.
-        </p>
+    <div className="page-enter" style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+      {/* Page Hero */}
+      <div className="page-hero" style={{ '--hero-glow': 'rgba(127,0,255,0.15)', '--hero-gradient': 'linear-gradient(135deg, #7f00ff, #e100ff)' }}>
+        <div className="page-hero-content">
+          <div className="page-hero-icon-wrapper">
+            <Languages size={32} color="#fff" />
+          </div>
+          <h1 className="page-hero-title">Universal Translator</h1>
+          <p className="page-hero-subtitle">
+            Translate study guides, lecture summaries, or flashcards instantly across major languages.
+          </p>
+        </div>
       </div>
 
       {/* Language Selector Controls Bar */}

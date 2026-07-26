@@ -1,8 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../context/AppContext';
-import { supabase } from '../lib/supabase';
-import { Settings as SettingsIcon, LogOut, Sun, Moon, Languages, Key, Database, Eye, EyeOff } from 'lucide-react';
+import { Settings as SettingsIcon, Sun, Moon, Languages, Key, Database, Eye, EyeOff } from 'lucide-react';
 
 export default function Settings() {
   const { 
@@ -11,8 +10,7 @@ export default function Settings() {
     lang, 
     toggleLang, 
     addToast,
-    t,
-    user
+    t
   } = useContext(AppContext);
 
   const navigate = useNavigate();
@@ -21,12 +19,8 @@ export default function Settings() {
   const [ytKey, setYtKey] = useState(() => localStorage.getItem('youtube_api_key') || '');
   const [ttsKey, setTtsKey] = useState(() => localStorage.getItem('google_tts_key') || '');
 
-  // Supabase credentials info
-  const rawSupUrl = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url') || '';
-  const maskedSupUrl = rawSupUrl ? rawSupUrl.replace(/(https?:\/\/)([^.]+)(.*)/, '$1****$3') : 'Not Configured';
-
-  const [showYtKey, setShowYtKey] = useState(false);
   const [showTtsKey, setShowTtsKey] = useState(false);
+  const [showYtKey, setShowYtKey] = useState(false);
 
   // Sync state with Context and appLanguage localStorage
   const handleLanguageToggle = () => {
@@ -55,52 +49,23 @@ export default function Settings() {
     addToast(lang === 'ar' ? 'تم حفظ مفتاح Google TTS API' : 'Google TTS API Key saved successfully!', 'success');
   };
 
-  const handleSignOut = async () => {
-    if (supabase) {
-      await supabase.auth.signOut();
-      addToast(lang === 'ar' ? 'تم تسجيل الخروج بنجاح!' : 'Signed out successfully!', 'success');
-      navigate('/login');
-    }
-  };
-
-  const handleReconnect = () => {
-    localStorage.removeItem('supabase_url');
-    localStorage.removeItem('supabase_anon_key');
-    addToast(lang === 'ar' ? 'إعادة ضبط الاتصال... جاري التحميل' : 'Resetting connection... reloading', 'info');
-    setTimeout(() => {
-      window.location.reload();
-    }, 1000);
-  };
-
   return (
-    <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px', padding: '20px', animation: 'fadeIn 0.3s ease-out' }}>
+    <div className="page-enter" style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px', padding: '20px' }}>
       
-      {/* Title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-        <SettingsIcon size={32} className="gradient-text" />
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>{lang === 'ar' ? 'الإعدادات العامة' : 'Application Settings'}</h1>
+      {/* Page Hero */}
+      <div className="page-hero" style={{ '--hero-glow': 'rgba(16,185,129,0.15)', '--hero-gradient': 'linear-gradient(135deg, #10b981, #34d399)' }}>
+        <div className="page-hero-content">
+          <div className="page-hero-icon-wrapper">
+            <SettingsIcon size={32} color="#fff" />
+          </div>
+          <h1 className="page-hero-title">{lang === 'ar' ? 'الإعدادات العامة' : 'Application Settings'}</h1>
+          <p className="page-hero-subtitle">
+            {lang === 'ar' ? 'تخصيص المظهر، إعدادات اللغات، ومفاتيح الواجهة البرمجية (API).' : 'Customize appearance, languages, and API keys.'}
+          </p>
+        </div>
       </div>
 
-      {/* Section 1: Account Info */}
-      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          👤 {lang === 'ar' ? 'معلومات الحساب' : 'Account Info'}
-        </h3>
-        {user ? (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-            <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
-              {lang === 'ar' ? 'البريد الإلكتروني:' : 'Email Address:'} <strong style={{ color: 'var(--text-primary)' }}>{user.email}</strong>
-            </span>
-            <button className="btn btn-danger" onClick={handleSignOut} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '0.85rem' }}>
-              <LogOut size={14} /> {lang === 'ar' ? 'تسجيل الخروج' : 'Sign Out'}
-            </button>
-          </div>
-        ) : (
-          <p style={{ color: 'var(--accent-danger)', fontSize: '0.9rem' }}>
-            {lang === 'ar' ? 'لم يتم العثور على مستخدم نشط.' : 'No active user found.'}
-          </p>
-        )}
-      </div>
+      {/* Section 1: Account Info (Removed because local mode) */}
 
       {/* Section 2: Appearance */}
       <div className="glass-card flex-mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
@@ -203,25 +168,7 @@ export default function Settings() {
         </form>
       </div>
 
-      {/* Section 5: Supabase Connection */}
-      <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          🔌 {lang === 'ar' ? 'اتصال قاعدة البيانات' : 'Supabase Connection'}
-        </h3>
-        <div className="flex-mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-              {lang === 'ar' ? 'رابط خادم Supabase الحالي' : 'Current Project URL'}
-            </span>
-            <span style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              {maskedSupUrl}
-            </span>
-          </div>
-          <button className="btn btn-secondary" onClick={handleReconnect} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
-            <Database size={14} color="var(--accent-cyan)" /> {lang === 'ar' ? 'إعادة الاتصال' : 'Reconnect'}
-          </button>
-        </div>
-      </div>
+      {/* Section 5: Supabase Connection Removed */}
 
     </div>
   );

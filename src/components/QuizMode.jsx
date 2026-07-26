@@ -518,16 +518,21 @@ export default function QuizMode() {
   };
 
   return (
-    <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="page-enter" style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {!quizStarted && (
-        <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Brain size={32} color="var(--accent-cyan)" />
-            <h1 style={{ fontSize: '1.8rem' }}>{t('quiz_title')}</h1>
+        <>
+          {/* Page Hero */}
+          <div className="page-hero" style={{ '--hero-glow': 'rgba(249,168,37,0.15)', '--hero-gradient': 'linear-gradient(135deg, #f9a825, #ff6f00)' }}>
+            <div className="page-hero-content">
+              <div className="page-hero-icon-wrapper">
+                <Brain size={32} color="#fff" />
+              </div>
+              <h1 className="page-hero-title">{t('quiz_title')}</h1>
+              <p className="page-hero-subtitle">{t('quiz_desc')}</p>
+            </div>
           </div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            {t('quiz_desc')}
-          </p>
+
+          <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
           <div className="form-group">
             <label className="form-label">{t('select_deck')}</label>
@@ -573,6 +578,7 @@ export default function QuizMode() {
             {isGeneratingAI ? (lang === 'ar' ? 'جاري تجهيز المواد...' : 'Assembling quiz materials...') : t('start_quiz_btn')}
           </button>
         </div>
+        </>
       )}
 
       {quizStarted && !quizFinished && renderQuizQuestion()}

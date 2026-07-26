@@ -107,17 +107,20 @@ export default function WordSearch() {
   };
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      {/* Title */}
-      <div>
-        <h1 style={{ fontSize: '2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Video size={28} color="var(--accent-cyan)" /> {t('word-search')}
-        </h1>
-        <p style={{ color: 'var(--text-secondary)' }}>
-          {lang === 'ar' 
-            ? 'ابحث عن أي كلمة باللغة الإنجليزية لعرض ترجمتها وتعريفها وسماع نطقها في مقاطع يوتيوب واقعية.'
-            : 'Search any vocabulary word to view translations, meanings, and hear pronunciations in real YouTube videos.'}
-        </p>
+    <div className="page-enter" style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+      {/* Page Hero */}
+      <div className="page-hero" style={{ '--hero-glow': 'rgba(255,8,68,0.15)', '--hero-gradient': 'linear-gradient(135deg, #ff0844, #ffb199)' }}>
+        <div className="page-hero-content">
+          <div className="page-hero-icon-wrapper">
+            <Video size={32} color="#fff" />
+          </div>
+          <h1 className="page-hero-title">{t('word-search')}</h1>
+          <p className="page-hero-subtitle">
+            {lang === 'ar' 
+              ? 'ابحث عن أي كلمة باللغة الإنجليزية لعرض ترجمتها وتعريفها وسماع نطقها في مقاطع يوتيوب واقعية.'
+              : 'Search any vocabulary word to view translations, meanings, and hear pronunciations in real YouTube videos.'}
+          </p>
+        </div>
       </div>
 
       {/* Search Input Bar */}

@@ -17,19 +17,32 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '20px', background: '#0f1729', color: 'white', fontFamily: 'sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-          <div style={{ background: '#1a2744', padding: '30px', borderRadius: '12px', border: '1px solid #ef4444', maxWidth: '500px', width: '90%' }}>
-            <h2 style={{ color: '#ef4444', marginTop: 0 }}>Something went wrong</h2>
-            <p style={{ color: '#aaa', margin: '15px 0' }}>The application crashed due to an unexpected error. This might be because required settings/environment variables are missing.</p>
-            <pre style={{ background: '#0f1729', padding: '15px', borderRadius: '6px', overflowX: 'auto', textAlign: 'left', fontSize: '0.85rem', color: '#fca5a5', border: '1px solid #374151' }}>
-              {this.state.error?.toString() || 'Unknown Error'}
+        <div style={{ padding: '20px', background: '#080c16', color: 'white', fontFamily: 'sans-serif', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+          <div style={{ background: '#101626', padding: '30px', borderRadius: '16px', border: '1px solid #ef4444', maxWidth: '600px', width: '90%', boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
+            <h2 style={{ color: '#ef4444', marginTop: 0, fontSize: '1.6rem' }}>Something went wrong</h2>
+            <p style={{ color: '#94a3b8', margin: '15px 0', fontSize: '0.95rem' }}>An unexpected error occurred in the application view.</p>
+            <pre style={{ background: '#080c16', padding: '15px', borderRadius: '8px', overflowX: 'auto', textAlign: 'left', fontSize: '0.8rem', color: '#fca5a5', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '200px' }}>
+              {this.state.error?.stack || this.state.error?.toString() || 'Unknown Error'}
             </pre>
-            <button 
-              onClick={() => window.location.reload()} 
-              style={{ background: '#ef4444', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginTop: '15px' }}
-            >
-              Reload Application
-            </button>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '20px' }}>
+              <button 
+                onClick={() => window.location.reload()} 
+                style={{ background: 'linear-gradient(135deg, #00f2fe 0%, #9b51e0 100%)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Reload Application
+              </button>
+              <button 
+                onClick={() => {
+                  if (window.confirm("Clear application cache and reset local data?")) {
+                    localStorage.clear();
+                    window.location.href = "/";
+                  }
+                }} 
+                style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                Reset Data & Reload
+              </button>
+            </div>
           </div>
         </div>
       );

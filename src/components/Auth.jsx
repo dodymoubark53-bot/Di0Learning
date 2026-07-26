@@ -1,13 +1,15 @@
 import React, { useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
 import { Key, Mail, Lock, Sparkles, Database, Eye, EyeOff, Loader } from 'lucide-react';
 
-export default function Auth() {
+export default function Auth({ initialMode = 'login' }) {
   const { lang, t, addToast } = useContext(AppContext);
+  const navigate = useNavigate();
   
   // Tab: 'login' | 'register'
-  const [authMode, setAuthMode] = useState('login');
+  const [authMode, setAuthMode] = useState(initialMode);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -118,6 +120,7 @@ export default function Auth() {
         if (error) throw error;
         
         addToast(getT('registerSuccess'), 'success');
+        navigate('/');
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
@@ -127,6 +130,7 @@ export default function Auth() {
         if (error) throw error;
 
         addToast(getT('loginSuccess'), 'success');
+        navigate('/');
       }
     } catch (err) {
       console.error(err);

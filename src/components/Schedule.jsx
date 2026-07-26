@@ -109,21 +109,26 @@ export default function Schedule() {
   const dayHeaders = lang === 'ar' ? dayHeadersAR : dayHeadersEN;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <h1 style={{ fontSize: '2rem' }}>{lang === 'ar' ? 'جدول الدراسة' : 'Study Planner'} 📅</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>
+    <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+      {/* Page Hero */}
+      <div className="page-hero" style={{ '--hero-glow': 'rgba(245,87,108,0.15)', '--hero-gradient': 'linear-gradient(135deg, #f093fb, #f5576c)' }}>
+        <div className="page-hero-content">
+          <div className="page-hero-icon-wrapper">
+            <Calendar size={32} color="#fff" />
+          </div>
+          <h1 className="page-hero-title">{lang === 'ar' ? 'جدول الدراسة' : 'Study Planner'}</h1>
+          <p className="page-hero-subtitle">
             {lang === 'ar' ? 'جدولة المواد، وتنظيم جلسات الدراسة، والتحقق من مواعيد الامتحانات.' : 'Schedule topics, organize sessions, and check study dates.'}
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => {
-          setDate(today.toISOString().split('T')[0]);
-          setShowAddForm(true);
-        }}>
-          <Plus size={18} /> {lang === 'ar' ? 'جدولة جلسة' : 'Schedule Session'}
-        </button>
+        <div className="page-hero-actions">
+          <button className="btn btn-primary" onClick={() => {
+            setDate(today.toISOString().split('T')[0]);
+            setShowAddForm(true);
+          }} style={{ padding: '14px 24px', fontSize: '1rem', borderRadius: '14px' }}>
+            <Plus size={20} /> {lang === 'ar' ? 'جدولة جلسة' : 'Schedule Session'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-2" style={{ gap: '30px', gridTemplateColumns: '1.4fr 0.6fr' }}>

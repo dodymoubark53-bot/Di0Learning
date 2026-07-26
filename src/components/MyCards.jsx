@@ -239,16 +239,21 @@ export default function MyCards() {
   // RENDER: Decks Grid Selection Screen
   if (activeDeck === null) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+      <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <h1 style={{ fontSize: '2rem' }}>{t('decks_title')} 🗂️</h1>
-            <p style={{ color: 'var(--text-secondary)' }}>{t('decks_desc')}</p>
+        <div className="page-hero" style={{ '--hero-glow': 'rgba(155,81,224,0.15)', '--hero-gradient': 'linear-gradient(135deg, #9b51e0, #6c3fc7)' }}>
+          <div className="page-hero-content">
+            <div className="page-hero-icon-wrapper">
+              <BookOpen size={32} color="#fff" />
+            </div>
+            <h1 className="page-hero-title">{t('decks_title')}</h1>
+            <p className="page-hero-subtitle">{t('decks_desc')}</p>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowCreateForm(true)}>
-            <FolderPlus size={18} /> {t('create_deck')}
-          </button>
+          <div className="page-hero-actions">
+            <button className="btn btn-primary" onClick={() => setShowCreateForm(true)} style={{ padding: '14px 24px', fontSize: '1rem', borderRadius: '14px' }}>
+              <FolderPlus size={20} /> {t('create_deck')}
+            </button>
+          </div>
         </div>
 
         {/* Import/Export toolbar */}
@@ -275,10 +280,6 @@ export default function MyCards() {
             <label className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem', cursor: 'pointer' }}>
               <Upload size={14} /> {t('upload_zip')}
               <input type="file" accept=".zip" onChange={handleImport} style={{ display: 'none' }} />
-            </label>
-            <label className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem', cursor: 'pointer', border: '1px solid var(--accent-violet)' }}>
-              <Upload size={14} /> Import Anki (.apkg)
-              <input type="file" accept=".apkg" onChange={handleAnkiImport} style={{ display: 'none' }} />
             </label>
           </div>
         </div>
@@ -407,7 +408,7 @@ export default function MyCards() {
 
   if (deckViewMode === 'list') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Navigation Return */}
         <button 
           className="btn btn-secondary" 
@@ -760,7 +761,7 @@ export default function MyCards() {
 
   // RENDER: Inner Deck Detail - Browse Slider View Mode
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Navigation Return */}
       <button 
         className="btn btn-secondary" 

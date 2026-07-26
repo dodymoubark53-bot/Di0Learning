@@ -9,7 +9,8 @@ import {
   Play, 
   Square,
   Scissors,
-  Check
+  Check,
+  Plus
 } from 'lucide-react';
 
 // Specialized audio player playback component for voice notes
@@ -522,10 +523,16 @@ export default function NewCard() {
   };
 
   return (
-    <div style={{ maxWidth: '720px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      <div>
-        <h1 style={{ fontSize: '2rem' }}>{t('create_card_title')} ➕</h1>
-        <p style={{ color: 'var(--text-secondary)' }}>{t('create_card_desc')}</p>
+    <div className="page-enter" style={{ maxWidth: '720px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Page Hero */}
+      <div className="page-hero" style={{ '--hero-glow': 'rgba(67,233,123,0.15)', '--hero-gradient': 'linear-gradient(135deg, #43e97b, #38f9d7)' }}>
+        <div className="page-hero-content">
+          <div className="page-hero-icon-wrapper">
+            <Plus size={32} color="#000" />
+          </div>
+          <h1 className="page-hero-title">{t('create_card_title')}</h1>
+          <p className="page-hero-subtitle">{t('create_card_desc')}</p>
+        </div>
       </div>
 
       {/* Select Template Toggle */}
