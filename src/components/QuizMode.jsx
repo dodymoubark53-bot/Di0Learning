@@ -61,7 +61,7 @@ function MediaDisplay({ mediaItem }) {
 }
 
 export default function QuizMode() {
-  const { cards, decks, settings, addQuizResult, setActiveTab, addToast, t, lang } = useContext(AppContext);
+  const { cards, decks, settings, addQuizResult, updateCardSrs, setActiveTab, addToast, t, lang } = useContext(AppContext);
 
   // Setup State (Checking for pre-selected redirect signals)
   const [quizDeck, setQuizDeck] = useState(() => {
@@ -75,6 +75,7 @@ export default function QuizMode() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState({}); // { index: selectedOption }
   const [selfScores, setSelfScores] = useState({}); // { index: 'correct' | 'wrong' }
+  const [srsRatings, setSrsRatings] = useState({}); // { index: 'again' | 'hard' | 'good' | 'easy' }
   const [revealAnswer, setRevealAnswer] = useState(false);
   const [freeNoteInput, setFreeNoteInput] = useState('');
   const [quizFinished, setQuizFinished] = useState(false);
@@ -94,7 +95,7 @@ export default function QuizMode() {
     let deckCards = quizDeck === 'All' ? cards : cards.filter(c => c.deckId === quizDeck);
     
     if (deckCards.length === 0) {
-      addToast('No cards found in this deck to run a quiz.', 'error');
+      addToast(lang === 'ar' ? 'لم يتم العثور على بطاقات في هذا المجلد لإجراء اختبار.' : 'No cards found in this deck to run a quiz.', 'error');
       return;
     }
 
@@ -135,15 +136,14 @@ export default function QuizMode() {
             deckId: quizDeck
           })));
         } else {
-          // Fallback to local AI generator
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          await new Promise(resolve => setTimeout(resolve, 1200));
           const mockAIQuestions = generateMockAIQuestions(deckCards);
           setQuizQuestions(mockAIQuestions);
-          addToast('Generated simulated quiz from deck materials.', 'info');
+          addToast(lang === 'ar' ? 'تم إنشاء أسئلة الاختبار بنجاح من محتوى البطاقات.' : 'Generated simulated quiz from deck materials.', 'info');
         }
       } catch (err) {
         console.error(err);
-        addToast('AI Generator failed. Defaulting to standard deck cards.', 'error');
+        addToast(lang === 'ar' ? 'فشل مولد الذكاء الاصطناعي، يتم استخدام البطاقات القياسية.' : 'AI Generator failed. Defaulting to standard deck cards.', 'error');
         setQuizQuestions(deckCards.slice(0, 10).map(c => ({ ...c })));
       } finally {
         setIsGeneratingAI(false);
@@ -156,6 +156,7 @@ export default function QuizMode() {
     setCurrentIndex(0);
     setSelectedAnswers({});
     setSelfScores({});
+    setSrsRatings({});
     setRevealAnswer(false);
     setFreeNoteInput('');
     setQuizFinished(false);
@@ -179,16 +180,6 @@ export default function QuizMode() {
         template: 'true-false',
         question: 'True or False: The Calvin Cycle of photosynthesis directly requires solar light to split water molecules.',
         correctAnswer: 'False'
-      });
-    }
-
-    if (contentText.toLowerCase().includes('relativity') || contentText.toLowerCase().includes('einstein')) {
-      questions.push({
-        id: 'ai_mock_3',
-        template: 'multiple-choice',
-        question: 'According to General Relativity, gravity is explained by which of the following mechanical descriptions?',
-        options: ['Immediate force fields between masses', 'The curvature of spacetime fabrics', 'Subatomic electromagnetic exchanges', 'Centrifugal rotation arrays'],
-        correctAnswer: 'B'
       });
     }
 
@@ -235,12 +226,34 @@ export default function QuizMode() {
   };
 
   const handleOptionSelect = (optionLabel) => {
-    if (selectedAnswers[currentIndex] !== undefined) return;
-    setSelectedAnswers(prev => ({ ...prev, [currentIndex]: optionLabel }));
+    const q = quizQuestions[currentIndex];
+    if (!q || selectedAnswers[q.id] !== undefined) return;
+    setSelectedAnswers(prev => ({ ...prev, [q.id]: optionLabel }));
   };
 
-  const handleSelfScore = (scoreType) => {
-    setSelfScores(prev => ({ ...prev, [currentIndex]: scoreType }));
+  const handleSrsRating = (rating) => {
+    const q = quizQuestions[currentIndex];
+    if (!q) return;
+
+    if (updateCardSrs) {
+      updateCardSrs(q.id, rating);
+    }
+
+    setSrsRatings(prev => ({ ...prev, [q.id]: rating }));
+    setSelfScores(prev => ({ ...prev, [q.id]: rating === 'again' ? 'wrong' : 'correct' }));
+
+    // Re-queue card for retry if rated 'again' with isolated card state
+    if (rating === 'again') {
+      const cleanOriginalId = String(q.id).split('_retry_')[0];
+      const retryCard = {
+        ...q,
+        id: `${cleanOriginalId}_retry_${Date.now()}`,
+        isRetryCard: true,
+        question: lang === 'ar' ? `[إعادة مراجعة كارت مخصص] ${q.question}` : `[Card Retry Review] ${q.question}`
+      };
+      setQuizQuestions(prev => [...prev, retryCard]);
+    }
+
     handleNext();
   };
 
@@ -256,11 +269,14 @@ export default function QuizMode() {
 
   const finishQuiz = () => {
     let finalScore = 0;
-    quizQuestions.forEach((q, idx) => {
+    quizQuestions.forEach((q) => {
+      const qId = q.id;
       if (q.template === 'multiple-choice' || q.template === 'true-false') {
-        if (selectedAnswers[idx] === q.correctAnswer) finalScore++;
+        if (selectedAnswers[qId] === q.correctAnswer) finalScore++;
       } else {
-        if (selfScores[idx] === 'correct') finalScore++;
+        const rating = srsRatings[qId];
+        if (rating && rating !== 'again') finalScore++;
+        else if (selfScores[qId] === 'correct') finalScore++;
       }
     });
 
@@ -275,19 +291,28 @@ export default function QuizMode() {
 
   const renderQuizQuestion = () => {
     const q = quizQuestions[currentIndex];
-    const userAns = selectedAnswers[currentIndex];
+    if (!q) return null;
+    const qId = q.id;
+    const userAns = selectedAnswers[qId];
     const isAnswered = userAns !== undefined;
 
     return (
       <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '24px', minHeight: '380px' }}>
-        {/* Progress bar */}
+        {/* Progress bar & Dedicated Card Badge */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
           <span style={{ color: 'var(--text-secondary)' }}>
             {t('q_progress', { current: currentIndex + 1, total: quizQuestions.length })}
           </span>
-          <span style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>
-            {t('cards')}: {q.deckId || quizDeck}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {q.isRetryCard && (
+              <span style={{ background: 'rgba(244, 63, 94, 0.2)', color: 'var(--accent-danger)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
+                🔄 {lang === 'ar' ? 'إعادة مراجعة هذا الكارت' : 'Card Retry'}
+              </span>
+            )}
+            <span style={{ fontWeight: 600, color: 'var(--accent-cyan)' }}>
+              {t('cards')}: {q.deckId || quizDeck}
+            </span>
+          </div>
         </div>
         <div style={{ width: '100%', height: '4px', background: 'var(--bg-tertiary)', borderRadius: '2px', overflow: 'hidden' }}>
           <div style={{ width: `${((currentIndex + 1) / quizQuestions.length) * 100}%`, height: '100%', background: 'linear-gradient(to right, var(--accent-cyan), var(--accent-violet))', transition: 'width 0.3s' }} />
@@ -331,41 +356,141 @@ export default function QuizMode() {
                 </button>
               );
             })}
+
+            {isAnswered && (
+              <div style={{ width: '100%', marginTop: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '8px', textAlign: 'center', fontWeight: 600 }}>
+                  {lang === 'ar' ? 'اختر تقييم تذكر السؤال لموعد المراجعة القادمة:' : 'Rate your question recall & reschedule interval:'}
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', width: '100%' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ border: '2px solid var(--accent-danger)', color: 'var(--accent-danger)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                    onClick={() => handleSrsRating('again')}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🔄 {lang === 'ar' ? 'إعادة' : 'Again'}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>1 min</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ border: '2px solid var(--accent-amber)', color: 'var(--accent-amber)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                    onClick={() => handleSrsRating('hard')}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🟠 {lang === 'ar' ? 'صعب' : 'Hard'}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>10 mins</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ border: '2px solid var(--accent-cyan)', color: 'var(--accent-cyan)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                    onClick={() => handleSrsRating('good')}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🔷 {lang === 'ar' ? 'جيد' : 'Good'}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>1 hour</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ border: '2px solid var(--accent-emerald)', color: 'var(--accent-emerald)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                    onClick={() => handleSrsRating('easy')}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🟢 {lang === 'ar' ? 'سهل' : 'Easy'}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>4 hours</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* True or False Options */}
         {q.template === 'true-false' && (
-          <div className="flex-mobile-stack" style={{ display: 'flex', gap: '16px' }}>
-            {['True', 'False'].map(opt => {
-              const isSelected = userAns === opt;
-              const isCorrect = opt === q.correctAnswer;
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div className="flex-mobile-stack" style={{ display: 'flex', gap: '16px' }}>
+              {['True', 'False'].map(opt => {
+                const isSelected = userAns === opt;
+                const isCorrect = opt === q.correctAnswer;
 
-              let optionClass = "quiz-option-btn justify-center";
-              if (isAnswered) {
-                if (isCorrect) optionClass += " correct";
-                else if (isSelected) optionClass += " incorrect";
-              } else if (isSelected) {
-                optionClass += " selected";
-              }
+                let optionClass = "quiz-option-btn justify-center";
+                if (isAnswered) {
+                  if (isCorrect) optionClass += " correct";
+                  else if (isSelected) optionClass += " incorrect";
+                } else if (isSelected) {
+                  optionClass += " selected";
+                }
 
-              return (
-                <button
-                  key={opt}
-                  type="button"
-                  className={optionClass}
-                  onClick={() => handleOptionSelect(opt)}
-                  disabled={isAnswered}
-                  style={{ flex: 1 }}
-                >
-                  {opt === 'True' ? '✅ True' : '❌ False'}
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    className={optionClass}
+                    onClick={() => handleOptionSelect(opt)}
+                    disabled={isAnswered}
+                    style={{ flex: 1 }}
+                  >
+                    {opt === 'True' ? '✅ True' : '❌ False'}
+                  </button>
+                );
+              })}
+            </div>
+
+            {isAnswered && (
+              <div style={{ width: '100%', marginTop: '14px', borderTop: '1px solid var(--border-color)', paddingTop: '14px' }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '8px', textAlign: 'center', fontWeight: 600 }}>
+                  {lang === 'ar' ? 'اختر تقييم تذكر السؤال لموعد المراجعة القادمة:' : 'Rate your question recall & reschedule interval:'}
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', width: '100%' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ border: '2px solid var(--accent-danger)', color: 'var(--accent-danger)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                    onClick={() => handleSrsRating('again')}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🔄 {lang === 'ar' ? 'إعادة' : 'Again'}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>1 min</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ border: '2px solid var(--accent-amber)', color: 'var(--accent-amber)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                    onClick={() => handleSrsRating('hard')}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🟠 {lang === 'ar' ? 'صعب' : 'Hard'}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>10 mins</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ border: '2px solid var(--accent-cyan)', color: 'var(--accent-cyan)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                    onClick={() => handleSrsRating('good')}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🔷 {lang === 'ar' ? 'جيد' : 'Good'}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>1 hour</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ border: '2px solid var(--accent-emerald)', color: 'var(--accent-emerald)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                    onClick={() => handleSrsRating('easy')}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🟢 {lang === 'ar' ? 'سهل' : 'Easy'}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>4 hours</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Flashcard (Self-scoring) */}
+        {/* Flashcard SRS Rating System */}
         {q.template === 'flashcard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
             {!revealAnswer ? (
@@ -383,20 +508,60 @@ export default function QuizMode() {
                   {q.media?.answer_image && <MediaDisplay mediaItem={q.media.answer_image} />}
                   {q.media?.answer_audio && <MediaDisplay mediaItem={q.media.answer_audio} />}
                 </div>
-                <div className="flex-mobile-stack" style={{ display: 'flex', gap: '12px', width: '100%' }}>
-                  <button className="btn btn-secondary" style={{ flex: 1, border: '1px solid var(--accent-emerald)', color: 'var(--accent-emerald)' }} onClick={() => handleSelfScore('correct')}>
-                    {t('right_btn')}
-                  </button>
-                  <button className="btn btn-secondary" style={{ flex: 1, border: '1px solid var(--accent-danger)', color: 'var(--accent-danger)' }} onClick={() => handleSelfScore('wrong')}>
-                    {t('wrong_btn')}
-                  </button>
+
+                {/* 4 SRS Interval Rating Buttons */}
+                <div style={{ width: '100%' }}>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '8px', textAlign: 'center', fontWeight: 600 }}>
+                    {lang === 'ar' ? 'اختر التقييم وموعد المراجعة القادمة:' : 'Select SRS Recall Rating & Reschedule Interval:'}
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', width: '100%' }}>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ border: '2px solid var(--accent-danger)', color: 'var(--accent-danger)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                      onClick={() => handleSrsRating('again')}
+                    >
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🔄 {lang === 'ar' ? 'إعادة' : 'Again'}</span>
+                      <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>1 min</span>
+                    </button>
+
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ border: '2px solid var(--accent-amber)', color: 'var(--accent-amber)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                      onClick={() => handleSrsRating('hard')}
+                    >
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🟠 {lang === 'ar' ? 'صعب' : 'Hard'}</span>
+                      <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>10 mins</span>
+                    </button>
+
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ border: '2px solid var(--accent-cyan)', color: 'var(--accent-cyan)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                      onClick={() => handleSrsRating('good')}
+                    >
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🔷 {lang === 'ar' ? 'جيد' : 'Good'}</span>
+                      <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>1 hour</span>
+                    </button>
+
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ border: '2px solid var(--accent-emerald)', color: 'var(--accent-emerald)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                      onClick={() => handleSrsRating('easy')}
+                    >
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🟢 {lang === 'ar' ? 'سهل' : 'Easy'}</span>
+                      <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>4 hours</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
           </div>
         )}
 
-        {/* Free Note (Self-scoring) */}
+        {/* Free Note (Self-scoring SRS) */}
         {q.template === 'free-note' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {!revealAnswer ? (
@@ -429,13 +594,53 @@ export default function QuizMode() {
                     <p style={{ fontSize: '0.95rem', whiteSpace: 'pre-wrap' }}>{freeNoteInput}</p>
                   </div>
                 )}
-                <div className="flex-mobile-stack" style={{ display: 'flex', gap: '12px' }}>
-                  <button className="btn btn-secondary" style={{ flex: 1, border: '1px solid var(--accent-emerald)', color: 'var(--accent-emerald)' }} onClick={() => handleSelfScore('correct')}>
-                    {t('pass_btn')}
-                  </button>
-                  <button className="btn btn-secondary" style={{ flex: 1, border: '1px solid var(--accent-danger)', color: 'var(--accent-danger)' }} onClick={() => handleSelfScore('wrong')}>
-                    {t('fail_btn')}
-                  </button>
+
+                {/* 4 SRS Interval Rating Buttons for Notes */}
+                <div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '8px', textAlign: 'center', fontWeight: 600 }}>
+                    {lang === 'ar' ? 'اختر تقييم تذكر الملاحظة:' : 'Select Note Recall Rating:'}
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', width: '100%' }}>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ border: '2px solid var(--accent-danger)', color: 'var(--accent-danger)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                      onClick={() => handleSrsRating('again')}
+                    >
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🔄 {lang === 'ar' ? 'إعادة' : 'Again'}</span>
+                      <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>1 min</span>
+                    </button>
+
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ border: '2px solid var(--accent-amber)', color: 'var(--accent-amber)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                      onClick={() => handleSrsRating('hard')}
+                    >
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🟠 {lang === 'ar' ? 'صعب' : 'Hard'}</span>
+                      <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>10 mins</span>
+                    </button>
+
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ border: '2px solid var(--accent-cyan)', color: 'var(--accent-cyan)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                      onClick={() => handleSrsRating('good')}
+                    >
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🔷 {lang === 'ar' ? 'جيد' : 'Good'}</span>
+                      <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>1 hour</span>
+                    </button>
+
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
+                      style={{ border: '2px solid var(--accent-emerald)', color: 'var(--accent-emerald)', flexDirection: 'column', padding: '10px 4px', gap: '2px' }}
+                      onClick={() => handleSrsRating('easy')}
+                    >
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>🟢 {lang === 'ar' ? 'سهل' : 'Easy'}</span>
+                      <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>4 hours</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -454,11 +659,24 @@ export default function QuizMode() {
 
   const renderQuizFinished = () => {
     let score = 0;
-    quizQuestions.forEach((q, idx) => {
+    let againCount = 0;
+    let hardCount = 0;
+    let goodCount = 0;
+    let easyCount = 0;
+
+    quizQuestions.forEach((q) => {
+      const qId = q.id;
+      const rating = srsRatings[qId];
+      if (rating === 'again') againCount++;
+      else if (rating === 'hard') { hardCount++; score++; }
+      else if (rating === 'good') { goodCount++; score++; }
+      else if (rating === 'easy') { easyCount++; score++; }
+
       if (q.template === 'multiple-choice' || q.template === 'true-false') {
-        if (selectedAnswers[idx] === q.correctAnswer) score++;
+        if (selectedAnswers[qId] === q.correctAnswer) score++;
       } else {
-        if (selfScores[idx] === 'correct') score++;
+        if (rating && rating !== 'again') score++;
+        else if (selfScores[qId] === 'correct') score++;
       }
     });
 
@@ -480,26 +698,55 @@ export default function QuizMode() {
           <span style={{ fontSize: '1.25rem', color: 'var(--text-secondary)', marginLeft: '10px' }}>({pct}%)</span>
         </div>
 
+        {/* SRS Rating Breakdown Stats */}
+        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', margin: '10px 0' }}>
+          <div style={{ background: 'rgba(244,63,94,0.1)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(244,63,94,0.3)' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--accent-danger)', fontWeight: 700 }}>🔄 {lang === 'ar' ? 'إعادة (دقيقة)' : 'Again'}</span>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-danger)' }}>{againCount}</div>
+          </div>
+          <div style={{ background: 'rgba(245,158,11,0.1)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(245,158,11,0.3)' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--accent-amber)', fontWeight: 700 }}>🟠 {lang === 'ar' ? 'صعب (10 د)' : 'Hard'}</span>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-amber)' }}>{hardCount}</div>
+          </div>
+          <div style={{ background: 'rgba(0,242,254,0.1)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(0,242,254,0.3)' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', fontWeight: 700 }}>🔷 {lang === 'ar' ? 'جيد (ساعة)' : 'Good'}</span>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-cyan)' }}>{goodCount}</div>
+          </div>
+          <div style={{ background: 'rgba(67,233,123,0.1)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(67,233,123,0.3)' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', fontWeight: 700 }}>🟢 {lang === 'ar' ? 'سهل (4س)' : 'Easy'}</span>
+            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>{easyCount}</div>
+          </div>
+        </div>
+
         {/* Summary grid */}
         <div style={{ width: '100%', borderTop: '1px solid var(--border-color)', paddingTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left' }}>
           <h3 style={{ fontSize: '1.1rem', marginBottom: '6px' }}>{t('review_summary')}</h3>
           {quizQuestions.map((q, idx) => {
+            const qId = q.id;
             let isCorrect = false;
-            
+            let ratingTag = srsRatings[qId];
+
             if (q.template === 'multiple-choice' || q.template === 'true-false') {
-              isCorrect = selectedAnswers[idx] === q.correctAnswer;
+              isCorrect = selectedAnswers[qId] === q.correctAnswer;
             } else {
-              isCorrect = selfScores[idx] === 'correct';
+              isCorrect = ratingTag !== 'again';
             }
 
             return (
               <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'var(--bg-secondary)', borderRadius: '6px', fontSize: '0.85rem' }}>
-                <div style={{ maxWidth: '80%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ maxWidth: '70%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   <strong>Q{idx+1}:</strong> {stripHtml(q.question)}
                 </div>
-                <span style={{ color: isCorrect ? 'var(--accent-emerald)' : 'var(--accent-danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  {isCorrect ? <Check size={14} /> : <X size={14} />} {isCorrect ? (lang === 'ar' ? 'صح' : 'Correct') : (lang === 'ar' ? 'خطأ' : 'Incorrect')}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {ratingTag && (
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: 'var(--bg-tertiary)' }}>
+                      {ratingTag.toUpperCase()}
+                    </span>
+                  )}
+                  <span style={{ color: isCorrect ? 'var(--accent-emerald)' : 'var(--accent-danger)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {isCorrect ? <Check size={14} /> : <X size={14} />} {isCorrect ? (lang === 'ar' ? 'نجاح' : 'Passed') : (lang === 'ar' ? 'إعادة' : 'Retry')}
+                  </span>
+                </div>
               </div>
             );
           })}

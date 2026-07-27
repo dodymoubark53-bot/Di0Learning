@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../context/AppContext';
 import {
   BookOpen,
@@ -96,6 +97,7 @@ function StatChip({ icon: Icon, value, label, color, bg }) {
 
 /* ─── Main Dashboard ─── */
 export default function Dashboard() {
+  const navigate = useNavigate();
   const {
     cards,
     decksMetadata,
@@ -105,6 +107,11 @@ export default function Dashboard() {
     t,
     lang,
   } = useContext(AppContext);
+
+  const goTo = (tab, path) => {
+    setActiveTab(tab);
+    navigate(path);
+  };
 
   const now = new Date();
   const upcomingSessions = schedule
@@ -156,21 +163,29 @@ export default function Dashboard() {
 
           {/* CTA buttons */}
           <div className="dash-hero-cta">
-            <button className="btn btn-primary dash-cta-primary" onClick={() => setActiveTab('new-card')}>
-              <Plus size={17} /> Create a Card
+            <button className="btn btn-primary dash-cta-primary" onClick={() => goTo('new-card', '/new-card')}>
+              <Plus size={17} /> {lang === 'ar' ? 'إنشاء كارت جديد' : 'Create a Card'}
             </button>
-            <button className="btn btn-secondary dash-cta-secondary" onClick={() => setActiveTab('quiz')}>
-              <Brain size={17} /> Start Quiz
+            <button className="btn btn-secondary dash-cta-secondary" onClick={() => goTo('quiz', '/quiz')}>
+              <Brain size={17} /> {lang === 'ar' ? 'بدء اختبار' : 'Start Quiz'}
             </button>
           </div>
         </div>
 
         {/* Floating stat chips */}
         <div className="dash-hero-stats">
-          <StatChip icon={BookOpen} value={totalCards} label={t('total_cards') || 'Total Cards'} color="var(--accent-cyan)" bg="rgba(0,242,254,0.1)" />
-          <StatChip icon={Brain} value={totalDecks} label={t('active_decks') || 'Decks'} color="var(--accent-violet)" bg="rgba(155,81,224,0.1)" />
-          <StatChip icon={Award} value={`${avgScore}%`} label={t('quiz_accuracy') || 'Quiz Accuracy'} color="var(--accent-amber)" bg="rgba(249,168,37,0.1)" />
-          <StatChip icon={Star} value={quizHistory.length} label="Quizzes Done" color="var(--accent-green)" bg="rgba(67,233,123,0.1)" />
+          <div onClick={() => goTo('cards', '/cards')} style={{ cursor: 'pointer' }} title={lang === 'ar' ? 'الانتقال إلى الكروت' : 'Go to Cards'}>
+            <StatChip icon={BookOpen} value={totalCards} label={t('total_cards') || 'Total Cards'} color="var(--accent-cyan)" bg="rgba(0,242,254,0.1)" />
+          </div>
+          <div onClick={() => goTo('cards', '/cards')} style={{ cursor: 'pointer' }} title={lang === 'ar' ? 'الانتقال إلى المجلدات' : 'Go to Decks'}>
+            <StatChip icon={Brain} value={totalDecks} label={t('active_decks') || 'Decks'} color="var(--accent-violet)" bg="rgba(155,81,224,0.1)" />
+          </div>
+          <div onClick={() => goTo('quiz', '/quiz')} style={{ cursor: 'pointer' }} title={lang === 'ar' ? 'الانتقال إلى الاختبارات' : 'Go to Quizzes'}>
+            <StatChip icon={Award} value={`${avgScore}%`} label={t('quiz_accuracy') || 'Quiz Accuracy'} color="var(--accent-amber)" bg="rgba(249,168,37,0.1)" />
+          </div>
+          <div onClick={() => goTo('quiz', '/quiz')} style={{ cursor: 'pointer' }} title={lang === 'ar' ? 'الانتقال إلى سجل الاختبارات' : 'Go to Quiz History'}>
+            <StatChip icon={Star} value={quizHistory.length} label="Quizzes Done" color="var(--accent-green)" bg="rgba(67,233,123,0.1)" />
+          </div>
         </div>
       </section>
 
@@ -193,7 +208,7 @@ export default function Dashboard() {
               <p style={{ color: 'var(--text-secondary)', margin: '8px 0' }}>
                 {t('no_sessions') || 'No upcoming sessions'}
               </p>
-              <button className="btn btn-secondary" onClick={() => setActiveTab('schedule')}>
+              <button className="btn btn-secondary" onClick={() => goTo('schedule', '/schedule')}>
                 <Plus size={14} /> {t('add_session') || 'Add Session'}
               </button>
             </div>
@@ -219,7 +234,7 @@ export default function Dashboard() {
               ))}
               <button
                 className="btn btn-secondary"
-                onClick={() => setActiveTab('schedule')}
+                onClick={() => goTo('schedule', '/schedule')}
                 style={{ alignSelf: 'flex-start', marginTop: 4 }}
               >
                 {t('view_full_calendar') || 'View Calendar'}
@@ -263,7 +278,7 @@ export default function Dashboard() {
                 />
               </div>
 
-              <button className="btn btn-secondary" onClick={() => setActiveTab('quiz')} style={{ marginTop: 4 }}>
+              <button className="btn btn-secondary" onClick={() => goTo('quiz', '/quiz')} style={{ marginTop: 4 }}>
                 <Brain size={14} /> Take Another Quiz
               </button>
             </div>
@@ -273,7 +288,7 @@ export default function Dashboard() {
               <p style={{ color: 'var(--text-secondary)', margin: '8px 0' }}>
                 {t('no_quiz_history') || 'No quiz history yet'}
               </p>
-              <button className="btn btn-primary" onClick={() => setActiveTab('quiz')}>
+              <button className="btn btn-primary" onClick={() => goTo('quiz', '/quiz')}>
                 <Brain size={14} /> Start First Quiz
               </button>
             </div>

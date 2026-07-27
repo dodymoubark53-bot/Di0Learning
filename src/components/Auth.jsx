@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { Key, Mail, Lock, Sparkles, Database, Eye, EyeOff, Loader } from 'lucide-react';
 
 export default function Auth({ initialMode = 'login' }) {
-  const { lang, t, addToast } = useContext(AppContext);
+  const { lang, t, addToast, loginUser, registerUser, user, logoutUser } = useContext(AppContext);
   const navigate = useNavigate();
   
   // Tab: 'login' | 'register'
@@ -13,11 +13,8 @@ export default function Auth({ initialMode = 'login' }) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Connection config state (if supabase is null)
-  const [supabaseUrl, setSupabaseUrl] = useState('');
-  const [supabaseKey, setSupabaseKey] = useState('');
-
   // Credentials state
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -25,36 +22,27 @@ export default function Auth({ initialMode = 'login' }) {
   // Local translations
   const authT = {
     en: {
-      setupTitle: 'Connect Supabase',
-      setupDesc: 'To use cloud synchronization, please enter your Supabase Project credentials. You can find these in your Supabase Dashboard under Project Settings > API.',
-      urlLabel: 'Supabase URL',
-      keyLabel: 'Supabase Anon Key',
-      connectBtn: 'Initialize Connection',
-      loginTitle: 'Sign In',
-      registerTitle: 'Create Account',
+      loginTitle: 'Sign In to Your Account',
+      registerTitle: 'Create New Account',
+      nameLabel: 'Full Name / Display Name',
       emailLabel: 'Email Address',
       passwordLabel: 'Password',
       confirmPasswordLabel: 'Confirm Password',
-      loginBtn: 'Log In',
-      registerBtn: 'Sign Up',
+      loginBtn: 'Sign In',
+      registerBtn: 'Create Account',
       noAccount: "Don't have an account?",
       hasAccount: 'Already have an account?',
       switchToRegister: 'Create one here',
       switchToLogin: 'Sign in here',
       passwordsMismatch: 'Passwords do not match.',
-      successConfig: 'Supabase credentials saved! Reconnecting...',
       loginSuccess: 'Signed in successfully!',
-      registerSuccess: 'Account created! Please check your email for confirmation.',
+      registerSuccess: 'Account created successfully!',
       authError: 'Authentication failed: '
     },
     ar: {
-      setupTitle: 'ربط Supabase',
-      setupDesc: 'لاستخدام المزامنة السحابية، يرجى إدخال بيانات مشروع Supabase الخاصة بك. يمكنك العثور عليها في لوحة تحكم Supabase ضمن إعدادات المشروع > واجهة برمجة التطبيقات (API).',
-      urlLabel: 'رابط Supabase URL',
-      keyLabel: 'مفتاح Anon Key الخاص بـ Supabase',
-      connectBtn: 'تهيئة الاتصال بالخادم',
-      loginTitle: 'تسجيل الدخول',
+      loginTitle: 'تسجيل الدخول إلى حسابك',
       registerTitle: 'إنشاء حساب جديد',
+      nameLabel: 'الاسم بالكامل / الاسم المستعار',
       emailLabel: 'البريد الإلكتروني',
       passwordLabel: 'كلمة المرور',
       confirmPasswordLabel: 'تأكيد كلمة المرور',
@@ -62,43 +50,23 @@ export default function Auth({ initialMode = 'login' }) {
       registerBtn: 'إنشاء الحساب',
       noAccount: 'ليس لديك حساب؟',
       hasAccount: 'لديك حساب بالفعل؟',
-      switchToRegister: 'أنشئ حساباً هنا',
+      switchToRegister: 'أنشئ حساباً جديداً',
       switchToLogin: 'سجل دخولك هنا',
       passwordsMismatch: 'كلمتا المرور غير متطابقتين.',
-      successConfig: 'تم حفظ إعدادات Supabase بنجاح! جاري الاتصال...',
       loginSuccess: 'تم تسجيل الدخول بنجاح!',
-      registerSuccess: 'تم إنشاء الحساب بنجاح! يرجى التحقق من بريدك الإلكتروني لتأكيد الحساب.',
+      registerSuccess: 'تم إنشاء الحساب بنجاح!',
       authError: 'فشل المصادقة: '
     }
   };
 
   const getT = (key) => authT[lang]?.[key] || authT['en']?.[key] || key;
 
-  // Handle Supabase Project URL/Key Configuration
-  const handleSetup = (e) => {
-    e.preventDefault();
-    if (!supabaseUrl.trim() || !supabaseKey.trim()) {
-      addToast(lang === 'ar' ? 'يرجى ملء جميع الحقول.' : 'Please fill in all fields.', 'error');
-      return;
-    }
-    localStorage.setItem('supabase_url', supabaseUrl.trim());
-    localStorage.setItem('supabase_anon_key', supabaseKey.trim());
-    addToast(getT('successConfig'), 'success');
-    setTimeout(() => {
-      window.location.reload();
-    }, 1200);
-  };
-
   // Handle Log In / Register
   const handleAuth = async (e) => {
     e.preventDefault();
-    if (!supabase) {
-      addToast(lang === 'ar' ? 'مكتبة Supabase غير مهيأة.' : 'Supabase is not initialized.', 'error');
-      return;
-    }
 
     if (!email.trim() || !password) {
-      addToast(lang === 'ar' ? 'يرجى ملء البريد وكلمة المرور.' : 'Please fill in email and password.', 'error');
+      addToast(lang === 'ar' ? 'يرجى ملء البريد الإلكتروني وكلمة المرور.' : 'Please fill in email and password.', 'error');
       return;
     }
 
@@ -112,25 +80,15 @@ export default function Auth({ initialMode = 'login' }) {
           return;
         }
 
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password: password,
-        });
-
-        if (error) throw error;
-        
-        addToast(getT('registerSuccess'), 'success');
-        navigate('/');
+        const success = await registerUser(name || email.split('@')[0], email, password);
+        if (success) {
+          navigate('/');
+        }
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: password,
-        });
-
-        if (error) throw error;
-
-        addToast(getT('loginSuccess'), 'success');
-        navigate('/');
+        const success = await loginUser(email, password);
+        if (success) {
+          navigate('/');
+        }
       }
     } catch (err) {
       console.error(err);
@@ -140,52 +98,44 @@ export default function Auth({ initialMode = 'login' }) {
     }
   };
 
-  // 1. If Supabase client is not configured (missing URL/Anon key), show Connection Setup Form
-  if (!supabase) {
+  // If user is already logged in, show Account Profile status screen with Sign Out option
+  if (user) {
     return (
       <div className="crop-overlay-container" style={{ position: 'fixed', padding: '20px', background: 'var(--bg-primary)' }}>
-        <form onSubmit={handleSetup} className="glass-card" style={{ maxWidth: '480px', width: '100%', display: 'flex', flexDirection: 'column', gap: '20px', padding: '36px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-            <div style={{ display: 'inline-flex', padding: '14px', borderRadius: '50%', background: 'rgba(0, 242, 254, 0.1)', color: 'var(--accent-cyan)', marginBottom: '16px' }}>
-              <Database size={36} />
-            </div>
-            <h2 style={{ fontSize: '1.8rem', marginBottom: '8px' }} className="gradient-text">
-              {getT('setupTitle')}
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-              {getT('setupDesc')}
-            </p>
+        <div className="glass-card" style={{ maxWidth: '460px', width: '100%', display: 'flex', flexDirection: 'column', gap: '20px', padding: '36px', textAlign: 'center' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-violet) 100%)',
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontWeight: 800,
+            fontSize: '1.8rem',
+            margin: '0 auto'
+          }}>
+            {user.name ? user.name.charAt(0).toUpperCase() : '👤'}
           </div>
 
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">{getT('urlLabel')}</label>
-            <input
-              type="url"
-              className="form-input"
-              placeholder="https://your-project.supabase.co"
-              value={supabaseUrl}
-              onChange={(e) => setSupabaseUrl(e.target.value)}
-              required
-            />
+          <div>
+            <h2 style={{ fontSize: '1.6rem', marginBottom: '4px' }}>{user.name}</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{user.email}</p>
+            <span style={{ display: 'inline-block', marginTop: '10px', fontSize: '0.75rem', background: 'rgba(0,242,254,0.15)', color: 'var(--accent-cyan)', padding: '4px 12px', borderRadius: '20px', fontWeight: 600 }}>
+              {lang === 'ar' ? 'مساحة بيانات خاصة بالمعرف: ' : 'Isolated Account Space: '} {user.id}
+            </span>
           </div>
 
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">{getT('keyLabel')}</label>
-            <textarea
-              className="form-input"
-              rows={3}
-              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-              value={supabaseKey}
-              onChange={(e) => setSupabaseKey(e.target.value)}
-              required
-              style={{ resize: 'none', fontFamily: 'monospace', fontSize: '0.8rem' }}
-            />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+            <button className="btn btn-primary" onClick={() => navigate('/')}>
+              {lang === 'ar' ? 'الذهاب للوحة التحكم' : 'Go to Dashboard'}
+            </button>
+            <button className="btn btn-danger" onClick={logoutUser}>
+              {lang === 'ar' ? 'تسجيل الخروج' : 'Sign Out'}
+            </button>
           </div>
-
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '10px', height: '46px' }}>
-            <Sparkles size={16} /> {getT('connectBtn')}
-          </button>
-        </form>
+        </div>
       </div>
     );
   }
@@ -220,6 +170,20 @@ export default function Auth({ initialMode = 'login' }) {
 
         {/* Input Forms */}
         <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {authMode === 'register' && (
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">{getT('nameLabel')}</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder={lang === 'ar' ? 'أدخل اسمك هنا' : 'Your name'}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+          )}
+
           <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">{getT('emailLabel')}</label>
             <div style={{ position: 'relative' }}>

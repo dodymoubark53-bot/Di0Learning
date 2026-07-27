@@ -17,6 +17,7 @@ import QuizMode from "./components/QuizMode";
 import WordSearch from "./components/WordSearch";
 import Translator from "./components/Translator";
 import Settings from "./components/Settings";
+import Auth from "./components/Auth";
 
 import {
   Home,
@@ -32,6 +33,7 @@ import {
   Sun,
   Moon,
   ChevronRight,
+  User,
 } from "lucide-react";
 
 // 1B. Create Navbar Component
@@ -166,6 +168,25 @@ function Navbar({
           >
             {theme === "dark" ? <Sun size={16} color="var(--accent-cyan)" /> : <Moon size={16} color="var(--accent-amber)" />}
           </button>
+
+          {/* User Account Profile Button */}
+          <Link
+            to="/auth"
+            className="btn btn-secondary"
+            style={{
+              padding: "7px 14px",
+              fontSize: "0.85rem",
+              fontWeight: "700",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              textDecoration: "none"
+            }}
+          >
+            <User size={16} color="var(--accent-cyan)" />
+            <span>{lang === "ar" ? "الحساب" : "Account"}</span>
+          </Link>
         </div>
       </nav>
     </>
@@ -186,6 +207,7 @@ function AppContent() {
     toasts,
     removeToast,
     isDataLoading,
+    user,
   } = useContext(AppContext);
 
   const navigate = useNavigate();
@@ -465,6 +487,39 @@ function AppContent() {
                     navLinks={navLinks}
                   />
 
+                  {/* Account required banner for guest visitors */}
+                  {!user && location.pathname !== '/auth' && location.pathname !== '/account' && (
+                    <div style={{
+                      background: 'rgba(245, 158, 11, 0.12)',
+                      border: '1px solid rgba(245, 158, 11, 0.4)',
+                      borderRadius: '12px',
+                      padding: '14px 20px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '20px',
+                      gap: '12px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '1.4rem' }}>🔐</span>
+                        <div>
+                          <strong style={{ color: 'var(--accent-amber)', fontSize: '0.95rem', display: 'block' }}>
+                            {lang === 'ar' ? 'تنويه: يلزم وجود حساب حفظ لتخزين بطاقاتك وإنجازاتك' : 'Notice: Account required to save your cards & progress'}
+                          </strong>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            {lang === 'ar' 
+                              ? 'لن يتم حفظ أو تدوين أي بيانات أو بطاقات إلا بعد تسجيل الدخول أو إنشاء حساب مجاني جديد.'
+                              : 'No study data will be saved until you log in or create a free user account.'}
+                          </span>
+                        </div>
+                      </div>
+                      <Link to="/auth" className="btn btn-primary" style={{ padding: '8px 18px', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                        {lang === 'ar' ? 'إنشاء حساب / تسجيل الدخول' : 'Register / Sign In'}
+                      </Link>
+                    </div>
+                  )}
+
                   {/* Subroutes within App Shell */}
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
@@ -480,6 +535,8 @@ function AppContent() {
                     <Route path="/word-search" element={<WordSearch />} />
                     <Route path="/translator" element={<Translator />} />
                     <Route path="/settings" element={<Settings />} />
+                    <Route path="/auth" element={<Auth />} />
+                    <Route path="/account" element={<Auth />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
 

@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../context/AppContext';
 import { getMedia } from '../utils/db';
 import { parseAnkiApkg } from '../utils/ankiParser';
@@ -80,6 +81,7 @@ const stripHtml = (html) => {
 };
 
 export default function MyCards() {
+  const navigate = useNavigate();
   const { 
     cards, 
     decksMetadata, 
@@ -91,6 +93,7 @@ export default function MyCards() {
     importDeck, 
     importAnkiDeck,
     addToast,
+    updateCardSrs,
     setActiveTab,
     t,
     lang
@@ -184,11 +187,13 @@ export default function MyCards() {
   const handleStartExam = () => {
     localStorage.setItem('preSelectedQuizDeck', activeDeck);
     setActiveTab('quiz');
+    navigate('/quiz');
   };
 
   const handleAddCardRedirect = () => {
     localStorage.setItem('preSelectedDeck', activeDeck);
     setActiveTab('new-card');
+    navigate('/new-card');
   };
 
   const handleEditSave = (e) => {
@@ -629,6 +634,66 @@ export default function MyCards() {
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* SRS Rating Buttons for any viewed card */}
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '14px', width: '100%' }}>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '8px', textAlign: 'center', fontWeight: 600 }}>
+                  {lang === 'ar' ? 'تقييم مستوى الحفظ وموعد المراجعة القادمة:' : 'Rate recall & set next review date:'}
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', width: '100%' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ border: '2px solid var(--accent-danger)', color: 'var(--accent-danger)', flexDirection: 'column', padding: '8px 4px', gap: '2px' }}
+                    onClick={() => {
+                      updateCardSrs(viewingCard.id, 'again');
+                      addToast(lang === 'ar' ? 'تم ضبط المراجعة بعد دقيقة واحدة' : 'Rescheduled in 1 min', 'info');
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>🔄 {lang === 'ar' ? 'إعادة' : 'Again'}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>1 min</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ border: '2px solid var(--accent-amber)', color: 'var(--accent-amber)', flexDirection: 'column', padding: '8px 4px', gap: '2px' }}
+                    onClick={() => {
+                      updateCardSrs(viewingCard.id, 'hard');
+                      addToast(lang === 'ar' ? 'تم ضبط المراجعة بعد 10 دقائق' : 'Rescheduled in 10 mins', 'info');
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>🟠 {lang === 'ar' ? 'صعب' : 'Hard'}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>10 mins</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ border: '2px solid var(--accent-cyan)', color: 'var(--accent-cyan)', flexDirection: 'column', padding: '8px 4px', gap: '2px' }}
+                    onClick={() => {
+                      updateCardSrs(viewingCard.id, 'good');
+                      addToast(lang === 'ar' ? 'تم ضبط المراجعة بعد ساعة واحدة' : 'Rescheduled in 1 hour', 'info');
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>🔷 {lang === 'ar' ? 'جيد' : 'Good'}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>1 hour</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ border: '2px solid var(--accent-emerald)', color: 'var(--accent-emerald)', flexDirection: 'column', padding: '8px 4px', gap: '2px' }}
+                    onClick={() => {
+                      updateCardSrs(viewingCard.id, 'easy');
+                      addToast(lang === 'ar' ? 'تم ضبط المراجعة بعد 4 ساعات' : 'Rescheduled in 4 hours', 'info');
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>🟢 {lang === 'ar' ? 'سهل' : 'Easy'}</span>
+                    <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>4 hours</span>
+                  </button>
+                </div>
               </div>
 
               <button className="btn btn-secondary" onClick={() => { setViewingCard(null); setIsFlipped(false); }}>

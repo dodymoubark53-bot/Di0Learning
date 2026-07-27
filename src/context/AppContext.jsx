@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect } from "react";
+import { createContext, useState, useEffect, useRef } from "react";
 import JSZip from "jszip";
 import { saveMedia, getMedia, clearAllMedia } from "../utils/db";
 
@@ -223,9 +223,23 @@ export const AppProvider = ({ children }) => {
   // Navigation / Routing
   const [activeTab, setActiveTab] = useState("home");
 
-  // Supabase User State Removed
-  const [user, setUser] = useState(null);
+  // User Account Authentication State
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("di0_active_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [isDataLoading, setIsDataLoading] = useState(false);
+
+  // Storage key helper based on active user
+  const getUserKey = (baseKey) => {
+    const userId = user ? user.id : "guest_default";
+    return `${baseKey}_${userId}`;
+  };
 
   // UI Language Preference (EN / AR)
   const [lang, setLang] = useState(() => localStorage.getItem("lang") || "en");
@@ -247,20 +261,99 @@ export const AppProvider = ({ children }) => {
       : { anthropicKey: "", youtubeKey: "", corsProxy: "" };
   });
 
-  // Cards & Decks
-  const [cards, setCards] = useState(() => JSON.parse(localStorage.getItem("cards") || "[]"));
-
-  // Decks metadata catalog (Folder system support)
-  const [decksMetadata, setDecksMetadata] = useState(() => {
-    const saved = localStorage.getItem("decksMetadata");
-    return saved ? JSON.parse(saved) : [{ name: "General", color: "#9b51e0", createdAt: new Date().getTime() }];
+  // Cards & Decks (User Isolated & Persistent across reloads)
+  const [cards, setCards] = useState(() => {
+    try {
+      const savedActiveUser = localStorage.getItem("di0_active_user");
+      if (!savedActiveUser) return [];
+      const userObj = JSON.parse(savedActiveUser);
+      const savedCards = localStorage.getItem(`cards_${userObj.id}`);
+      return savedCards ? JSON.parse(savedCards) : [];
+    } catch {
+      return [];
+    }
   });
 
-  // Study Planner Schedule
-  const [schedule, setSchedule] = useState(() => JSON.parse(localStorage.getItem("schedule") || "[]"));
+  // Decks metadata catalog (User Isolated & Persistent)
+  const [decksMetadata, setDecksMetadata] = useState(() => {
+    try {
+      const savedActiveUser = localStorage.getItem("di0_active_user");
+      if (!savedActiveUser) return [{ name: "General", color: "#9b51e0", createdAt: new Date().getTime() }];
+      const userObj = JSON.parse(savedActiveUser);
+      const savedDecks = localStorage.getItem(`decksMetadata_${userObj.id}`);
+      return savedDecks 
+        ? JSON.parse(savedDecks) 
+        : [{ name: "General", color: "#9b51e0", createdAt: new Date().getTime() }];
+    } catch {
+      return [{ name: "General", color: "#9b51e0", createdAt: new Date().getTime() }];
+    }
+  });
 
-  // Quiz History
-  const [quizHistory, setQuizHistory] = useState(() => JSON.parse(localStorage.getItem("quizHistory") || "[]"));
+  // Study Planner Schedule (User Isolated & Persistent)
+  const [schedule, setSchedule] = useState(() => {
+    try {
+      const savedActiveUser = localStorage.getItem("di0_active_user");
+      if (!savedActiveUser) return [];
+      const userObj = JSON.parse(savedActiveUser);
+      const savedSchedule = localStorage.getItem(`schedule_${userObj.id}`);
+      return savedSchedule ? JSON.parse(savedSchedule) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Quiz History (User Isolated & Persistent)
+  const [quizHistory, setQuizHistory] = useState(() => {
+    try {
+      const savedActiveUser = localStorage.getItem("di0_active_user");
+      if (!savedActiveUser) return [];
+      const userObj = JSON.parse(savedActiveUser);
+      const savedHistory = localStorage.getItem(`quizHistory_${userObj.id}`);
+      return savedHistory ? JSON.parse(savedHistory) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const isInitialMount = useRef(true);
+
+  // Switch user workspace ONLY when user account changes after mount
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    if (!user) {
+      setCards([]);
+      setDecksMetadata([{ name: "General", color: "#9b51e0", createdAt: new Date().getTime() }]);
+      setSchedule([]);
+      setQuizHistory([]);
+      return;
+    }
+
+    const userId = user.id;
+    
+    // Cards
+    const savedCards = localStorage.getItem(`cards_${userId}`);
+    setCards(savedCards ? JSON.parse(savedCards) : []);
+
+    // Decks
+    const savedDecks = localStorage.getItem(`decksMetadata_${userId}`);
+    setDecksMetadata(
+      savedDecks 
+        ? JSON.parse(savedDecks) 
+        : [{ name: "General", color: "#9b51e0", createdAt: new Date().getTime() }]
+    );
+
+    // Schedule
+    const savedSchedule = localStorage.getItem(`schedule_${userId}`);
+    setSchedule(savedSchedule ? JSON.parse(savedSchedule) : []);
+
+    // Quiz History
+    const savedHistory = localStorage.getItem(`quizHistory_${userId}`);
+    setQuizHistory(savedHistory ? JSON.parse(savedHistory) : []);
+  }, [user?.id]);
 
   // Toast System
   const [toasts, setToasts] = useState(() => []);
@@ -279,7 +372,6 @@ export const AppProvider = ({ children }) => {
   };
 
   const addToast = (message, type = "info") => {
-    // keep render purity: avoid Date.now/Math.random inside functions
     const id = String(Date.now()) + "_" + type;
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => removeToast(id), 4000);
@@ -289,7 +381,21 @@ export const AppProvider = ({ children }) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Sync state changes to LocalStorage
+  // Auth requirement check before saving data
+  const checkAuthRequired = () => {
+    if (!user) {
+      addToast(
+        lang === "ar"
+          ? "⚠️ يلزم تسجيل الدخول أو إنشاء حساب جديد أولاً لحفظ بطاقاتك وموادك الدراسية!"
+          : "⚠️ Sign in or create an account to save study cards and data!",
+        "error"
+      );
+      return false;
+    }
+    return true;
+  };
+
+  // Sync state changes to LocalStorage ONLY when account is active
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
@@ -308,20 +414,111 @@ export const AppProvider = ({ children }) => {
   }, [settings]);
 
   useEffect(() => {
-    localStorage.setItem("cards", JSON.stringify(cards));
-  }, [cards]);
+    if (!user) return;
+    localStorage.setItem(`cards_${user.id}`, JSON.stringify(cards));
+  }, [cards, user?.id]);
 
   useEffect(() => {
-    localStorage.setItem("decksMetadata", JSON.stringify(decksMetadata));
-  }, [decksMetadata]);
+    if (!user) return;
+    localStorage.setItem(`decksMetadata_${user.id}`, JSON.stringify(decksMetadata));
+  }, [decksMetadata, user?.id]);
 
   useEffect(() => {
-    localStorage.setItem("schedule", JSON.stringify(schedule));
-  }, [schedule]);
+    if (!user) return;
+    localStorage.setItem(`schedule_${user.id}`, JSON.stringify(schedule));
+  }, [schedule, user?.id]);
 
   useEffect(() => {
-    localStorage.setItem("quizHistory", JSON.stringify(quizHistory));
-  }, [quizHistory]);
+    if (!user) return;
+    localStorage.setItem(`quizHistory_${user.id}`, JSON.stringify(quizHistory));
+  }, [quizHistory, user?.id]);
+
+  // Auth User Functions
+  const registerUser = async (name, email, password) => {
+    const cleanEmail = email.trim().toLowerCase();
+    let db = {};
+    try {
+      db = JSON.parse(localStorage.getItem("di0_users_db") || "{}");
+    } catch {
+      db = {};
+    }
+
+    if (db[cleanEmail]) {
+      addToast(lang === "ar" ? "هذا البريد الإلكتروني مسجل بالفعل." : "Email is already registered.", "error");
+      return false;
+    }
+
+    const newUser = {
+      id: "user_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
+      name: name.trim() || cleanEmail.split("@")[0],
+      email: cleanEmail,
+      password,
+      createdAt: Date.now()
+    };
+
+    db[cleanEmail] = newUser;
+    localStorage.setItem("di0_users_db", JSON.stringify(db));
+    
+    setUser(newUser);
+    localStorage.setItem("di0_active_user", JSON.stringify(newUser));
+    addToast(lang === "ar" ? `مرحباً بك ${newUser.name}! تم إنشاء حسابك بنجاح.` : `Welcome ${newUser.name}! Account created.`, "success");
+    return true;
+  };
+
+  const loginUser = async (email, password) => {
+    const cleanEmail = email.trim().toLowerCase();
+    let db = {};
+    try {
+      db = JSON.parse(localStorage.getItem("di0_users_db") || "{}");
+    } catch {
+      db = {};
+    }
+
+    const userObj = db[cleanEmail];
+    if (!userObj || userObj.password !== password) {
+      addToast(lang === "ar" ? "البريد الإلكتروني أو كلمة المرور غير صحيحة." : "Invalid email or password.", "error");
+      return false;
+    }
+
+    setUser(userObj);
+    localStorage.setItem("di0_active_user", JSON.stringify(userObj));
+    addToast(lang === "ar" ? `مرحباً بعودتك، ${userObj.name}!` : `Welcome back, ${userObj.name}!`, "success");
+    return true;
+  };
+
+  const logoutUser = () => {
+    setUser(null);
+    localStorage.removeItem("di0_active_user");
+    addToast(lang === "ar" ? "تم تسجيل الخروج بنجاح." : "Logged out successfully.", "info");
+  };
+
+  // SRS Rating Update
+  const updateCardSrs = (cardId, rating) => {
+    const intervals = {
+      again: 1 * 60 * 1000,      // 1 minute (تكرار بعد دقيقة واحدة)
+      hard: 10 * 60 * 1000,      // 10 minutes (تكرار بعد 10 دقائق)
+      good: 60 * 60 * 1000,      // 1 hour (تكرار بعد ساعة واحدة)
+      easy: 240 * 60 * 1000,     // 4 hours (تكرار بعد 4 ساعات)
+    };
+
+    const now = Date.now();
+    const cleanId = String(cardId).split('_retry_')[0];
+    const addition = intervals[rating] || intervals.good;
+    const nextReviewDate = now + addition;
+
+    setCards(prev => prev.map(c => {
+      if (c.id === cleanId) {
+        return {
+          ...c,
+          lastRating: rating,
+          lastReviewedAt: now,
+          nextReviewDate,
+          reviewCount: (c.reviewCount || 0) + 1,
+        };
+      }
+      return c;
+    }));
+  };
 
   // Theme Actions
   const toggleTheme = () =>
@@ -332,6 +529,7 @@ export const AppProvider = ({ children }) => {
 
   // Deck Folder Actions
   const addDeck = async (name, color = "#9b51e0") => {
+    if (!checkAuthRequired()) return false;
     const trimmed = name.trim();
     if (!trimmed) return;
     if (
@@ -349,9 +547,11 @@ export const AppProvider = ({ children }) => {
 
     setDecksMetadata((prev) => [...prev, newDeck]);
     addToast(`Deck "${trimmed}" created!`, "success");
+    return true;
   };
 
   const deleteDeck = async (deckName) => {
+    if (!checkAuthRequired()) return false;
     if (deckName === "General") {
       addToast("Cannot delete the General default deck.", "error");
       return;
@@ -364,6 +564,7 @@ export const AppProvider = ({ children }) => {
 
   // Card Actions
   const addCard = async (cardData, mediaFiles = {}) => {
+    if (!checkAuthRequired()) return false;
     const assignedDeck = cardData.deckId || "General";
     let deckMeta = decksMetadata.find((d) => d.name === assignedDeck);
 
@@ -408,6 +609,7 @@ export const AppProvider = ({ children }) => {
 
     setCards((prev) => [newCard, ...prev]);
     addToast("Card created successfully!", "success");
+    return true;
   };
 
   const updateCard = async (
@@ -416,6 +618,7 @@ export const AppProvider = ({ children }) => {
     mediaFiles = {},
     deletedMediaIds = [],
   ) => {
+    if (!checkAuthRequired()) return false;
     const currentCard = cards.find((c) => c.id === cardId);
     if (!currentCard) return;
 
@@ -455,15 +658,18 @@ export const AppProvider = ({ children }) => {
       })
     );
     addToast("Card updated successfully!", "success");
+    return true;
   };
 
   const deleteCard = async (cardId) => {
+    if (!checkAuthRequired()) return false;
     setCards((prev) => prev.filter((c) => c.id !== cardId));
     addToast("Card deleted.", "info");
   };
 
   // Schedule Actions
   const addSession = async (sessionData) => {
+    if (!checkAuthRequired()) return false;
     let newSession = {
       id: Date.now().toString(),
       subject: sessionData.subject || "Study Session",
@@ -736,6 +942,10 @@ export const AppProvider = ({ children }) => {
         isDataLoading,
         user,
         setUser,
+        registerUser,
+        loginUser,
+        logoutUser,
+        updateCardSrs,
       }}
     >
       {children}

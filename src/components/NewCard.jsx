@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../context/AppContext';
 import { 
   Mic, 
@@ -117,6 +118,7 @@ function AudioPlayControls({ file, onRemove }) {
 }
 
 export default function NewCard() {
+  const navigate = useNavigate();
   const { decks, addCard, setActiveTab, addToast, t, lang } = useContext(AppContext);
 
   // Form State
@@ -322,23 +324,40 @@ export default function NewCard() {
   };
 
   // Camera logic
-  const startCamera = async (field) => {
-    if (attachedFiles[field]?.image) {
+  const [facingMode, setFacingMode] = useState('user'); // 'user' (front) or 'environment' (back)
+
+  const startCamera = async (field, overrideMode) => {
+    const activeMode = overrideMode || facingMode;
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+    if (field && attachedFiles[field]?.image && !overrideMode) {
       const confirmReplace = window.confirm('Replace existing image?');
       if (!confirmReplace) return;
     }
-    setCameraField(field);
+    if (field) setCameraField(field);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: activeMode } } });
+      } catch (e) {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: activeMode } });
+      }
       setCameraStream(stream);
       setTimeout(() => {
         if (videoRef.current) videoRef.current.srcObject = stream;
       }, 100);
     } catch (err) {
       console.error(err);
-      addToast('Camera access blocked or unavailable.', 'error');
-      setCameraField(null);
+      addToast(lang === 'ar' ? 'عذراً، تعذر الوصول للكاميرا المحددة.' : 'Camera access blocked or requested camera unavailable.', 'error');
+      if (!overrideMode) setCameraField(null);
     }
+  };
+
+  const toggleCameraFacing = () => {
+    const nextMode = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(nextMode);
+    startCamera(cameraField, nextMode);
   };
 
   const capturePhoto = () => {
@@ -501,7 +520,11 @@ export default function NewCard() {
       }
     }
 
-    await addCard(cardPayload, mediaFilesToSubmit);
+    const success = await addCard(cardPayload, mediaFilesToSubmit);
+    if (!success) {
+      navigate('/auth');
+      return;
+    }
 
     setQuestion('');
     setAnswer('');
@@ -514,12 +537,11 @@ export default function NewCard() {
       notes: { image: null, audio: null }
     });
     if (isCreatingDeck) {
-      setNewDeckName('');
       setIsCreatingDeck(false);
-      setDeckId(finalDeck);
+      setNewDeckName('');
     }
 
-    setActiveTab('cards');
+    navigate('/cards');
   };
 
   return (
@@ -821,12 +843,21 @@ export default function NewCard() {
               <div style={{ width: '100%', aspectRatio: '4/3', background: '#000', borderRadius: '8px', overflow: 'hidden' }}>
                 <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
-              <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+              <div style={{ display: 'flex', gap: '10px', width: '100%', flexWrap: 'wrap' }}>
                 <button type="button" className="btn btn-primary" onClick={capturePhoto} style={{ flex: 1 }}>
-                  Snap Photo
+                  {lang === 'ar' ? 'التقاط صورة' : 'Snap Photo'}
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={toggleCameraFacing}
+                  title={lang === 'ar' ? 'تبديل بين الكاميرا الأمامية والخلفية' : 'Switch front / rear camera'}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  🔄 {facingMode === 'user' ? (lang === 'ar' ? 'كاميرا خلفية' : 'Rear Cam') : (lang === 'ar' ? 'كاميرا أمامية' : 'Front Cam')}
                 </button>
                 <button type="button" className="btn btn-secondary" onClick={closeCameraModal}>
-                  Cancel
+                  {lang === 'ar' ? 'إلغاء' : 'Cancel'}
                 </button>
               </div>
             </div>

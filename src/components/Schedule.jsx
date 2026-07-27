@@ -1,14 +1,53 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../context/AppContext';
-import { Plus, Trash, ChevronLeft, ChevronRight, Calendar, Clock } from 'lucide-react';
+import { Plus, Trash, ChevronLeft, ChevronRight, Calendar, Clock, Award, Check, X, FileText, Sparkles } from 'lucide-react';
 
 export default function Schedule() {
-  const { schedule, addSession, deleteSession, decks, t, lang } = useContext(AppContext);
+  const { schedule, addSession, deleteSession, decks, addToast, t, lang, user } = useContext(AppContext);
+  const navigate = useNavigate();
 
   // Calendar State
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+
+  // Persistent Daily Notes & Achievements Log per User Account
+  const [dailyNotes, setDailyNotes] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem("di0_active_user");
+      if (!savedUser) return {};
+      const userObj = JSON.parse(savedUser);
+      const savedNotes = localStorage.getItem(`di0_daily_notes_${userObj.id}`);
+      return savedNotes ? JSON.parse(savedNotes) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const isInitialNotesMount = useRef(true);
+
+  useEffect(() => {
+    if (isInitialNotesMount.current) {
+      isInitialNotesMount.current = false;
+      return;
+    }
+
+    if (!user) {
+      setDailyNotes({});
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(`di0_daily_notes_${user.id}`);
+      setDailyNotes(saved ? JSON.parse(saved) : {});
+    } catch {
+      setDailyNotes({});
+    }
+  }, [user?.id]);
+
+  // Active Day Modal Cell State
+  const [activeDayCell, setActiveDayCell] = useState(null); // { dateNum, dateStr }
+  const [dayNoteText, setDayNoteText] = useState('');
 
   // Form State
   const [showAddForm, setShowAddForm] = useState(false);
@@ -53,6 +92,37 @@ export default function Schedule() {
     }
   };
 
+  // Open Day Modal Window
+  const openDayModal = (cell) => {
+    if (!cell.dateStr) return;
+    setActiveDayCell(cell);
+    setDayNoteText(dailyNotes[cell.dateStr] || '');
+  };
+
+  const handleSaveDayNote = (e) => {
+    e.preventDefault();
+    if (!activeDayCell) return;
+    if (!user) {
+      addToast(
+        lang === 'ar'
+          ? '⚠️ يلزم تسجيل الدخول أو إنشاء حساب أولاً لحفظ إنجازاتك!'
+          : '⚠️ Please sign in or create an account to save achievements!',
+        'error'
+      );
+      navigate('/auth');
+      return;
+    }
+    const updated = { ...dailyNotes, [activeDayCell.dateStr]: dayNoteText.trim() };
+    setDailyNotes(updated);
+    localStorage.setItem(`di0_daily_notes_${user.id}`, JSON.stringify(updated));
+    addToast(
+      lang === 'ar'
+        ? 'تم حفظ ملاحظات وإنجازات اليوم بنجاح!'
+        : 'Daily achievements & notes saved!',
+      'success'
+    );
+  };
+
   // Grid math
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
@@ -74,11 +144,21 @@ export default function Schedule() {
     });
   }
 
-  const handleAddSubmit = (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (!subject.trim()) return;
+    if (!user) {
+      addToast(
+        lang === 'ar'
+          ? '⚠️ يلزم تسجيل الدخول أو إنشاء حساب جديد أولاً لجدولة الجلسات!'
+          : '⚠️ Sign in or register to schedule study sessions!',
+        'error'
+      );
+      navigate('/auth');
+      return;
+    }
 
-    addSession({
+    const success = await addSession({
       subject,
       date,
       time,
@@ -87,13 +167,15 @@ export default function Schedule() {
       notes
     });
 
-    setSubject('');
-    setDate('');
-    setTime('12:00');
-    setDuration(60);
-    setColor('#9b51e0');
-    setNotes('');
-    setShowAddForm(false);
+    if (success) {
+      setSubject('');
+      setDate('');
+      setTime('12:00');
+      setDuration(60);
+      setColor('#9b51e0');
+      setNotes('');
+      setShowAddForm(false);
+    }
   };
 
   const colorsList = [
@@ -116,9 +198,11 @@ export default function Schedule() {
           <div className="page-hero-icon-wrapper">
             <Calendar size={32} color="#fff" />
           </div>
-          <h1 className="page-hero-title">{lang === 'ar' ? 'جدول الدراسة' : 'Study Planner'}</h1>
+          <h1 className="page-hero-title">{lang === 'ar' ? 'مخطط وجدول المذاكرة' : 'Study & Achievement Planner'}</h1>
           <p className="page-hero-subtitle">
-            {lang === 'ar' ? 'جدولة المواد، وتنظيم جلسات الدراسة، والتحقق من مواعيد الامتحانات.' : 'Schedule topics, organize sessions, and check study dates.'}
+            {lang === 'ar' 
+              ? 'اضغط على أي يوم لفتح نافذة تدوين الإنجازات والملاحظات، وجدولة جلساتك الدراسية.' 
+              : 'Click any day box to log daily achievements, notes, and study sessions.'}
           </p>
         </div>
         <div className="page-hero-actions">
@@ -156,22 +240,47 @@ export default function Schedule() {
 
               {calendarCells.map(cell => {
                 const daySessions = cell.dateStr ? schedule.filter(s => s.date === cell.dateStr) : [];
+                const hasNote = cell.dateStr && Boolean(dailyNotes[cell.dateStr]);
+
                 return (
                   <div 
                     key={cell.key} 
                     className={`calendar-cell ${!cell.dateNum ? 'inactive' : ''} ${cell.isToday ? 'today' : ''}`}
+                    onClick={() => cell.dateNum && openDayModal(cell)}
+                    style={{ cursor: cell.dateNum ? 'pointer' : 'default' }}
+                    title={cell.dateNum ? (lang === 'ar' ? 'اضغط لفتح نافذة تدوين اليوم' : 'Click to open day planner & achievements') : ''}
                   >
                     {cell.dateNum && (
-                      <span className="calendar-date-num">{cell.dateNum}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <span className="calendar-date-num">{cell.dateNum}</span>
+                        {hasNote && (
+                          <span 
+                            style={{ 
+                              fontSize: '0.65rem', 
+                              background: 'rgba(67,233,123,0.2)', 
+                              color: '#43e97b', 
+                              padding: '2px 5px', 
+                              borderRadius: '4px', 
+                              fontWeight: 700 
+                            }}
+                            title={lang === 'ar' ? 'يوجد إنجازات وملاحظات' : 'Logged achievements'}
+                          >
+                            🏆
+                          </span>
+                        )}
+                      </div>
                     )}
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, overflowY: 'auto', marginTop: '4px' }}>
                       {daySessions.map(session => (
                         <div 
                           key={session.id} 
                           className="calendar-event" 
                           style={{ backgroundColor: session.color + '25', borderLeft: `3px solid ${session.color}`, color: 'var(--text-primary)' }}
-                          onClick={() => setSelectedSession(session)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedSession(session);
+                          }}
                         >
                           {session.subject}
                         </div>
@@ -227,6 +336,118 @@ export default function Schedule() {
           </div>
         </div>
       </div>
+
+      {/* MODAL: Day Cell Details & Achievements Log Modal */}
+      {activeDayCell && (
+        <div className="crop-overlay-container" style={{ padding: '20px' }}>
+          <div className="glass-card" style={{ maxWidth: '560px', width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Calendar size={22} color="var(--accent-cyan)" />
+                <h2 style={{ fontSize: '1.4rem', color: 'var(--text-primary)' }}>
+                  {lang === 'ar' ? `يوم ${activeDayCell.dateNum} ${monthNames[currentMonth]} ${currentYear}` : `Day ${activeDayCell.dateNum} - ${monthNames[currentMonth]} ${currentYear}`}
+                </h2>
+              </div>
+              <button 
+                className="btn btn-secondary btn-icon" 
+                style={{ width: '30px', height: '30px' }}
+                onClick={() => setActiveDayCell(null)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Achievements & Journal Form */}
+            <form onSubmit={handleSaveDayNote} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div className="form-group">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Award size={16} color="var(--accent-amber)" />
+                  {lang === 'ar' ? 'تدوين إنجازات وملاحظات هذا اليوم:' : 'Log Today\'s Achievements & Study Notes:'}
+                </label>
+                <textarea 
+                  className="form-textarea" 
+                  rows={4}
+                  placeholder={lang === 'ar' ? 'دون هنا إنجازاتك، الدروس التي أنهيتها، أو أي ملاحظات هامة...' : 'Write down your achievements, completed tasks, or notes for this day...'}
+                  value={dayNoteText}
+                  onChange={(e) => setDayNoteText(e.target.value)}
+                />
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start', gap: '6px' }}>
+                <Check size={16} /> {lang === 'ar' ? 'حفظ الإنجازات' : 'Save Achievements Log'}
+              </button>
+            </form>
+
+            <hr style={{ borderColor: 'var(--border-color)', margin: '4px 0' }} />
+
+            {/* Scheduled Sessions for this Day */}
+            <div>
+              <h3 style={{ fontSize: '1rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Clock size={16} color="var(--accent-violet)" />
+                {lang === 'ar' ? 'الجلسات المجدولة لهذا اليوم:' : 'Sessions Scheduled for This Day:'}
+              </h3>
+
+              {schedule.filter(s => s.date === activeDayCell.dateStr).length === 0 ? (
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  {lang === 'ar' ? 'لا توجد جلسات دراسية مجدولة لهذا اليوم.' : 'No sessions scheduled for this date.'}
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {schedule.filter(s => s.date === activeDayCell.dateStr).map(session => (
+                    <div 
+                      key={session.id} 
+                      style={{ 
+                        padding: '10px 14px', 
+                        background: 'var(--bg-secondary)', 
+                        borderLeft: `4px solid ${session.color}`, 
+                        borderRadius: '8px',
+                        display: 'flex',
+                        justify: 'space-between',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <div>
+                        <strong style={{ fontSize: '0.9rem' }}>{session.subject}</strong>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          ⏰ {session.time} ({session.duration} {lang === 'ar' ? 'دقيقة' : 'mins'})
+                        </div>
+                      </div>
+                      <button 
+                        className="btn btn-danger btn-icon"
+                        style={{ width: '28px', height: '28px' }}
+                        onClick={() => deleteSession(session.id)}
+                        title={lang === 'ar' ? 'حذف الجلسة' : 'Delete session'}
+                      >
+                        <Trash size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
+              <button 
+                type="button"
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setDate(activeDayCell.dateStr);
+                  setShowAddForm(true);
+                }}
+                style={{ flex: 1, gap: '6px' }}
+              >
+                <Plus size={16} /> {lang === 'ar' ? 'جدولة جلسة لهذا اليوم' : '+ Add Session to this Day'}
+              </button>
+              <button 
+                type="button"
+                className="btn btn-secondary" 
+                onClick={() => setActiveDayCell(null)}
+              >
+                {lang === 'ar' ? 'إغلاق' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: Add Session Form */}
       {showAddForm && (
